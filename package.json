@@ -1,0 +1,19 @@
+{
+  "name": "workfusion-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "server",
+    "client",
+    "shared"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=server",
+    "dev:client": "npm run dev --workspace=client",
+    "dev:ai": "cd recommendation-service && uvicorn api.main:app --reload --port 8000",
+    "build:server": "npm run build --workspace=server",
+    "build:client": "npm run build --workspace=client",
+    "seed": "npm run seed --workspace=server",
+    "test:server": "npm run test --workspace=server"
+  }
+}
