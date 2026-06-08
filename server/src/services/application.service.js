@@ -3,6 +3,7 @@ import { JobRepository } from "../repositories/job.repository.js";
 import { ChatRepository } from "../repositories/chat.repository.js";
 import { ApplicationStatus, NotificationType } from "shared";
 import { Notification } from "../models/Notification.js";
+import { Application } from "../models/Application.js";
 import { logger } from "../utils/logger.js";
 import mongoose from "mongoose";
 
@@ -128,10 +129,43 @@ export class ApplicationService {
     if (filters.jobId) query.jobId = filters.jobId;
     if (filters.status) query.status = filters.status;
 
-    return await this.appRepo.findAll(query, {
+    const result = await this.appRepo.findAll(query, {
       page: filters.page,
       limit: filters.limit,
       sort: { createdAt: -1 },
     });
+
+    const applicationsWithCount = await Promise.all(
+      result.applications.map(async (app) => {
+        const appObj = app.toObject();
+        if (app.seekerId && app.jobId) {
+          const seekerId = app.seekerId._id || app.seekerId;
+          const currentCategory = app.jobId.category;
+
+          const completedApplications = await Application.find({
+            seekerId,
+            status: "Completed",
+          }).populate("jobId");
+
+          const matchingCompletedCount = completedApplications.filter((completedApp) => {
+            return (
+              completedApp.jobId &&
+              completedApp.jobId.category === currentCategory &&
+              completedApp._id.toString() !== app._id.toString()
+            );
+          }).length;
+
+          appObj.completedSimilarJobsCount = matchingCompletedCount;
+        } else {
+          appObj.completedSimilarJobsCount = 0;
+        }
+        return appObj;
+      })
+    );
+
+    return {
+      applications: applicationsWithCount,
+      total: result.total,
+    };
   }
 }

@@ -1,3 +1,6 @@
+import dns from "dns";
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
+
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
@@ -100,7 +103,10 @@ const seedDatabase = async () => {
       email: "admin@workfusion.com",
       password: adminPassword,
       role: UserRole.ADMIN,
+      roles: [UserRole.ADMIN],
       city: "Islamabad",
+      cnic: "37405-0000000-1",
+      deviceId: "admin_device",
       skills: ["Management", "Moderation", "Analytics"],
       experience: 5,
       isVerified: true,
@@ -129,7 +135,10 @@ const seedDatabase = async () => {
         email: `employer${i + 1}@workfusion.com`,
         password: generalPassword,
         role: UserRole.EMPLOYER,
+        roles: [UserRole.EMPLOYER],
         phone: `+92-300-11223${i.toString().padStart(2, "0")}`,
+        cnic: `37405-11111${i.toString().padStart(2, "0")}-1`,
+        deviceId: `employer_device_${i}`,
         city,
         bio: `${company} is a leading provider of premium professional services, based out of ${city}, Pakistan. We specialize in fast-paced scaling and delivering results.`,
         address: `${i + 12} Blue Area, Sector F-6, ${city}`,
@@ -183,7 +192,10 @@ const seedDatabase = async () => {
         email: `seeker${i + 1}@workfusion.com`,
         password: generalPassword,
         role: UserRole.SEEKER,
+        roles: [UserRole.SEEKER],
         phone: `+92-333-55667${i.toString().padStart(2, "0")}`,
+        cnic: `37405-22222${i.toString().padStart(2, "0")}-1`,
+        deviceId: `seeker_device_${i}`,
         city,
         bio: profile.bio,
         address: `${i + 45} G-Sector, Street 3, ${city}`,

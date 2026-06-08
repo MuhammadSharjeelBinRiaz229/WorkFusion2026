@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { UserPlus, AlertCircle, ArrowRight } from "lucide-react";
@@ -15,9 +15,34 @@ export default function RegisterPage() {
   const [role, setRole] = useState("Service Seeker");
   const [city, setCity] = useState("Islamabad");
   const [phone, setPhone] = useState("");
+  const [cnic, setCnic] = useState("");
+  const [deviceId, setDeviceId] = useState("");
   const [skillsText, setSkillsText] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Generate simple client-side device fingerprint
+    const generateFingerprint = () => {
+      const parts = [
+        navigator.userAgent,
+        navigator.language,
+        window.screen.width + "x" + window.screen.height,
+        window.screen.colorDepth,
+        new Date().getTimezoneOffset(),
+        navigator.hardwareConcurrency || "unknown"
+      ];
+      const str = parts.join("###");
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      return Math.abs(hash).toString(16);
+    };
+    setDeviceId(generateFingerprint());
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -35,6 +60,8 @@ export default function RegisterPage() {
       role,
       city,
       phone,
+      cnic,
+      deviceId,
       skills,
     };
 
@@ -147,6 +174,32 @@ export default function RegisterPage() {
                 className="w-full px-4 py-3 rounded-xl bg-zinc-900/60 border border-white/10 focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 outline-none transition-all text-sm placeholder:text-zinc-600"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-zinc-400 tracking-wide uppercase">CNIC (National Identity Card)</label>
+            <input
+              type="text"
+              required
+              value={cnic}
+              onChange={(e) => {
+                let val = e.target.value.replace(/\D/g, "");
+                if (val.length > 13) val = val.slice(0, 13);
+                let formatted = "";
+                if (val.length > 0) {
+                  formatted += val.slice(0, 5);
+                }
+                if (val.length > 5) {
+                  formatted += "-" + val.slice(5, 12);
+                }
+                if (val.length > 12) {
+                  formatted += "-" + val.slice(12, 13);
+                }
+                setCnic(formatted);
+              }}
+              placeholder="37405-1234567-1"
+              className="w-full px-4 py-3 rounded-xl bg-zinc-900/60 border border-white/10 focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 outline-none transition-all text-sm placeholder:text-zinc-600"
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

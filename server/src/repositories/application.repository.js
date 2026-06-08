@@ -9,7 +9,7 @@ export class ApplicationRepository {
   async findById(id) {
     return await Application.findById(id)
       .populate("jobId")
-      .populate("seekerId", "fullName email city skills experience rating profilePicture");
+      .populate("seekerId", "fullName email city skills experience rating reviewCount profilePicture bio portfolio resume availability preferredWorkType portfolioWebsite preferredJobTypes hourlyRate education certifications");
   }
 
   async findByJobAndSeeker(jobId, seekerId) {
@@ -25,7 +25,7 @@ export class ApplicationRepository {
     const total = await Application.countDocuments(filter);
     const applications = await Application.find(filter)
       .populate("jobId")
-      .populate("seekerId", "fullName email city skills experience rating profilePicture")
+      .populate("seekerId", "fullName email city skills experience rating reviewCount profilePicture bio portfolio resume availability preferredWorkType portfolioWebsite preferredJobTypes hourlyRate education certifications")
       .sort(options.sort || { createdAt: -1 })
       .skip(skip)
       .limit(options.limit);

@@ -1,3 +1,6 @@
+import dns from "dns";
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
+
 import { describe, expect, it, beforeAll, afterAll } from "@jest/globals";
 import request from "supertest";
 import mongoose from "mongoose";
@@ -9,7 +12,11 @@ import { Chat } from "../models/Chat.js";
 import { Message } from "../models/Message.js";
 import { UserRole, ApplicationStatus, ServiceType, WorkType } from "shared";
 
-const TEST_DB_URI = "mongodb://localhost:27017/workfusion_test";
+const TEST_DB_URI = process.env.MONGODB_URI 
+  ? (process.env.MONGODB_URI.includes("/?") 
+      ? process.env.MONGODB_URI.replace("/?", "/workfusion_test?") 
+      : process.env.MONGODB_URI + "/workfusion_test")
+  : "mongodb+srv://workfusion:F22bscs016@workfusion.tqbkrnu.mongodb.net/workfusion_test?appName=workfusion";
 
 beforeAll(async () => {
   // Override database connection to testing database
@@ -46,6 +53,8 @@ describe("WorkFusion Integration Test Suite", () => {
         password: "password123",
         role: UserRole.EMPLOYER,
         city: "Islamabad",
+        cnic: "37405-9999999-1",
+        deviceId: "test_employer_device",
       });
 
     expect(res.status).toBe(211);
@@ -65,6 +74,8 @@ describe("WorkFusion Integration Test Suite", () => {
         role: UserRole.SEEKER,
         city: "Rawalpindi",
         skills: ["React", "Node.js"],
+        cnic: "37405-8888888-1",
+        deviceId: "test_seeker_device",
       });
 
     expect(res.status).toBe(211);
@@ -186,5 +197,101 @@ describe("WorkFusion Integration Test Suite", () => {
     expect(msgRes.status).toBe(211);
     expect(msgRes.body.success).toBe(true);
     expect(msgRes.body.data.message).toBe("Hello employer! Direct messaging works now.");
+  });
+
+  // 5. DUAL-ROLE AND SWITCHING TESTS
+  it("should allow a Seeker to add an Employer profile and switch roles", async () => {
+    // Add Employer profile to Seeker account
+    const addProfileRes = await request(app)
+      .post("/api/v1/auth/add-profile")
+      .set("Authorization", `Bearer ${seekerToken}`)
+      .send({
+        role: UserRole.EMPLOYER,
+        bio: "Adding employer company bio",
+        phone: "+92-300-8888888",
+        city: "Islamabad",
+        address: "Industrial Area, Islamabad",
+      });
+
+    expect(addProfileRes.status).toBe(211);
+    expect(addProfileRes.body.success).toBe(true);
+    expect(addProfileRes.body.data.user.roles).toContain(UserRole.EMPLOYER);
+    expect(addProfileRes.body.data.user.role).toBe(UserRole.EMPLOYER);
+
+    // Capture the new token with the active Employer role
+    const employerRoleToken = addProfileRes.body.data.accessToken;
+
+    // Switch back to Seeker role
+    const switchBackRes = await request(app)
+      .post("/api/v1/auth/switch-role")
+      .set("Authorization", `Bearer ${employerRoleToken}`)
+      .send({ role: UserRole.SEEKER });
+
+    expect(switchBackRes.status).toBe(200);
+    expect(switchBackRes.body.success).toBe(true);
+    expect(switchBackRes.body.data.user.role).toBe(UserRole.SEEKER);
+
+    // Switch back to Employer role
+    const switchEmployerRes = await request(app)
+      .post("/api/v1/auth/switch-role")
+      .set("Authorization", `Bearer ${switchBackRes.body.data.accessToken}`)
+      .send({ role: UserRole.EMPLOYER });
+
+    expect(switchEmployerRes.status).toBe(200);
+    expect(switchEmployerRes.body.success).toBe(true);
+    expect(switchEmployerRes.body.data.user.role).toBe(UserRole.EMPLOYER);
+  });
+
+  // 6. PASSWORD UPDATE SECURITY TESTS
+  it("should fail to change password if current password is wrong", async () => {
+    const res = await request(app)
+      .post("/api/v1/auth/change-password")
+      .set("Authorization", `Bearer ${seekerToken}`)
+      .send({
+        currentPassword: "wrong_password_here",
+        newPassword: "newpassword123",
+      });
+
+    expect(res.status).toBe(500);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toContain("Current password is incorrect");
+  });
+
+  it("should successfully change password if current password is correct", async () => {
+    const res = await request(app)
+      .post("/api/v1/auth/change-password")
+      .set("Authorization", `Bearer ${seekerToken}`)
+      .send({
+        currentPassword: "password123",
+        newPassword: "newpassword123",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.message).toContain("Password updated successfully");
+  });
+
+  it("should allow logging in with the new password", async () => {
+    const res = await request(app)
+      .post("/api/v1/auth/login")
+      .send({
+        email: "seeker_test@workfusion.com",
+        password: "newpassword123",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.user.email).toBe("seeker_test@workfusion.com");
+  });
+
+  it("should allow an employer to search for talents", async () => {
+    const res = await request(app)
+      .get("/api/v1/auth/talents?query=Seeker&city=Islamabad")
+      .set("Authorization", `Bearer ${employerToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.talents.length).toBeGreaterThan(0);
+    expect(res.body.data.talents[0].fullName).toContain("Seeker");
   });
 });

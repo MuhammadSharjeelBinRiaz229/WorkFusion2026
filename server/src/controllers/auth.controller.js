@@ -104,4 +104,107 @@ export class AuthController {
       next(error);
     }
   };
+
+  addProfile = async (req, res, next) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) throw new Error("Unauthorized");
+      const result = await this.authService.addProfile(userId, req.body);
+
+      await ActivityLog.create({
+        userId: new mongoose.Types.ObjectId(userId),
+        action: "Add Profile",
+        entity: "User",
+        entityId: new mongoose.Types.ObjectId(userId),
+      });
+
+      return res.status(211).json({
+        success: true,
+        message: "Profile added successfully",
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  switchRole = async (req, res, next) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) throw new Error("Unauthorized");
+      const { role } = req.body;
+      if (!role) {
+        return res.status(400).json({
+          success: false,
+          message: "Role is required to switch profiles",
+        });
+      }
+
+      const result = await this.authService.switchRole(userId, role);
+
+      await ActivityLog.create({
+        userId: new mongoose.Types.ObjectId(userId),
+        action: "Switch Role",
+        entity: "User",
+        entityId: new mongoose.Types.ObjectId(userId),
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Active profile switched successfully",
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  changePassword = async (req, res, next) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) throw new Error("Unauthorized");
+      const { currentPassword, newPassword } = req.body;
+
+      await this.authService.changePassword(userId, currentPassword, newPassword);
+
+      await ActivityLog.create({
+        userId: new mongoose.Types.ObjectId(userId),
+        action: "Change Password",
+        entity: "User",
+        entityId: new mongoose.Types.ObjectId(userId),
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Password updated successfully",
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getTalents = async (req, res, next) => {
+    try {
+      const { query, city, skills, page = 1, limit = 10 } = req.query;
+      const filters = {};
+      if (query) filters.query = String(query);
+      if (city) filters.city = String(city);
+      if (skills) {
+        filters.skills = String(skills).split(",").map(s => s.trim()).filter(s => s.length > 0);
+      }
+
+      const options = {
+        page: Number(page),
+        limit: Number(limit),
+      };
+
+      const result = await this.authService.searchTalents(filters, options);
+      return res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 }

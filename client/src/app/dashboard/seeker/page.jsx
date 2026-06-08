@@ -4,21 +4,22 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { 
   Sparkles, Briefcase, Search, FileText, MessageSquare, User, 
-  MapPin, CheckCircle, Clock, XCircle, Send, Plus, Trash2, LogOut, Check
+  MapPin, CheckCircle, Clock, XCircle, Send, Plus, Trash2, LogOut, Check, Lock,
+  LayoutGrid, Link
 } from "lucide-react";
 
 const CITIES = ["Islamabad", "Rawalpindi", "Lahore", "Karachi", "Faisalabad", "Peshawar", "Multan", "Sialkot"];
 
 export default function SeekerDashboard() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("matches"); // matches, explore, applications, messages, profile
+  const [activeTab, setActiveTab] = useState("matches"); // matches, explore, applications, messages, profile, security
   const [user, setUser] = useState(null);
   
   // Recommendations state
   const [recommendedJobs, setRecommendedJobs] = useState([]);
   const [recLoading, setRecLoading] = useState(false);
   const [recPage, setRecPage] = useState(1);
-  const [recLimit, setRecLimit] = useState(10);
+  const [recLimit, setRecLimit] = useState(5);
 
   // Explore jobs state
   const [jobs, setJobs] = useState([]);
@@ -56,8 +57,36 @@ export default function SeekerDashboard() {
   const [portfolioDesc, setPortfolioDesc] = useState("");
   const [portfolioTech, setPortfolioTech] = useState("");
   const [portfolioList, setPortfolioList] = useState([]);
+  const [profileResume, setProfileResume] = useState("");
+  const [profilePortfolioWebsite, setProfilePortfolioWebsite] = useState("");
+  const [profilePreferredJobTypes, setProfilePreferredJobTypes] = useState([]);
+  const [showPortfolioModal, setShowPortfolioModal] = useState(false);
+  const [portfolioRole, setPortfolioRole] = useState("");
+  const [portfolioImages, setPortfolioImages] = useState([]);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
+  const [profilePicture, setProfilePicture] = useState("");
+  const [profileHourlyRate, setProfileHourlyRate] = useState(0);
+
+  // Security password update states
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [securityMessage, setSecurityMessage] = useState("");
+  const [securityError, setSecurityError] = useState("");
+  const [securityLoading, setSecurityLoading] = useState(false);
+
+  // Employer Profile Expansion form states
+  const [showAddEmployer, setShowAddEmployer] = useState(false);
+  const [companyBio, setCompanyBio] = useState("");
+  const [companyPhone, setCompanyPhone] = useState("");
+  const [companyCity, setCompanyCity] = useState("Islamabad");
+  const [companyAddress, setCompanyAddress] = useState("");
+  const [companyPic, setCompanyPic] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [companyEmployeesCount, setCompanyEmployeesCount] = useState("1 - 10");
+  const [companyGoogleMapsLink, setCompanyGoogleMapsLink] = useState("");
+  const [addEmpLoading, setAddEmpLoading] = useState(false);
+  const [addEmpError, setAddEmpError] = useState("");
 
   // Modal application state
   const [applyingJob, setApplyingJob] = useState(null);
@@ -84,6 +113,12 @@ export default function SeekerDashboard() {
     setProfilePhone(parsedUser.phone || "");
     setProfileExperience(parsedUser.experience || 0);
     setProfileAvailability(parsedUser.availability || "");
+    setProfilePicture(parsedUser.profilePicture || "");
+    setPortfolioList(parsedUser.portfolio || []);
+    setProfileResume(parsedUser.resume || "");
+    setProfilePortfolioWebsite(parsedUser.portfolioWebsite || "");
+    setProfilePreferredJobTypes(parsedUser.preferredJobTypes || []);
+    setProfileHourlyRate(parsedUser.hourlyRate || 0);
 
     // Load visited jobs
     const savedVisited = localStorage.getItem("visitedJobs");
@@ -278,6 +313,11 @@ export default function SeekerDashboard() {
       experience: Number(profileExperience),
       availability: profileAvailability,
       portfolio: portfolioList,
+      profilePicture: profilePicture,
+      resume: profileResume,
+      portfolioWebsite: profilePortfolioWebsite,
+      preferredJobTypes: profilePreferredJobTypes,
+      hourlyRate: Number(profileHourlyRate),
     };
 
     try {
@@ -301,6 +341,93 @@ export default function SeekerDashboard() {
     }
   };
 
+  const handleSwitchRole = async (targetRole) => {
+    try {
+      const res = await apiRequest("/auth/switch-role", {
+        method: "POST",
+        body: JSON.stringify({ role: targetRole }),
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        throw new Error(result.message || "Failed to switch profiles");
+      }
+      localStorage.setItem("accessToken", result.data.accessToken);
+      localStorage.setItem("refreshToken", result.data.refreshToken);
+      localStorage.setItem("user", JSON.stringify(result.data.user));
+      
+      if (targetRole === "Employer") {
+        router.push("/dashboard/employer");
+      } else {
+        router.push("/dashboard/seeker");
+      }
+    } catch (err) {
+      alert(err.message || "Error switching profiles");
+    }
+  };
+
+  const handleAddEmployerProfile = async (e) => {
+    e.preventDefault();
+    setAddEmpError("");
+    setAddEmpLoading(true);
+
+    try {
+      const res = await apiRequest("/auth/add-profile", {
+        method: "POST",
+        body: JSON.stringify({
+          role: "Employer",
+          bio: companyBio,
+          phone: companyPhone,
+          city: companyCity,
+          address: companyAddress,
+          profilePicture: companyPic || profilePicture,
+          companyName,
+          employeesCount: companyEmployeesCount,
+          googleMapsLink: companyGoogleMapsLink,
+        }),
+      });
+
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        throw new Error(result.message || "Failed to add Employer profile");
+      }
+
+      localStorage.setItem("accessToken", result.data.accessToken);
+      localStorage.setItem("refreshToken", result.data.refreshToken);
+      localStorage.setItem("user", JSON.stringify(result.data.user));
+
+      router.push("/dashboard/employer");
+    } catch (err) {
+      setAddEmpError(err.message || "Failed to add Employer profile");
+    } finally {
+      setAddEmpLoading(false);
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setSecurityError("");
+    setSecurityMessage("");
+    setSecurityLoading(true);
+
+    try {
+      const res = await apiRequest("/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        throw new Error(result.message || "Failed to update password");
+      }
+      setSecurityMessage("Password updated successfully!");
+      setCurrentPassword("");
+      setNewPassword("");
+    } catch (err) {
+      setSecurityError(err.message || "Error updating password");
+    } finally {
+      setSecurityLoading(false);
+    }
+  };
+
   // Add portfolio project
   const handleAddPortfolio = () => {
     if (!portfolioTitle || !portfolioDesc) return;
@@ -308,11 +435,15 @@ export default function SeekerDashboard() {
       title: portfolioTitle,
       description: portfolioDesc,
       technologies: portfolioTech.split(",").map((t) => t.trim()).filter((t) => t.length > 0),
+      role: portfolioRole,
+      images: portfolioImages,
     };
     setPortfolioList((prev) => [...prev, newProject]);
     setPortfolioTitle("");
     setPortfolioDesc("");
     setPortfolioTech("");
+    setPortfolioRole("");
+    setPortfolioImages([]);
   };
 
   // Delete portfolio project
@@ -442,6 +573,20 @@ export default function SeekerDashboard() {
             >
               <User size={18} /> My Profile
             </button>
+            <button
+              onClick={() => setActiveTab("security")}
+              className={`w-full px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium transition-all ${activeTab === "security" ? "bg-white text-black font-semibold" : "text-zinc-400 hover:bg-white/5"}`}
+            >
+              <Lock size={18} /> Security
+            </button>
+            {user?.roles && user.roles.includes("Employer") && (
+              <button
+                onClick={() => handleSwitchRole("Employer")}
+                className="w-full px-4 py-2.5 rounded-xl flex items-center gap-3 text-sm font-semibold text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 bg-blue-500/5 transition-all mt-4"
+              >
+                <Briefcase size={18} /> Switch to Employer
+              </button>
+            )}
           </nav>
 
         </div>
@@ -557,6 +702,7 @@ export default function SeekerDashboard() {
                       }}
                       className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-white/10 outline-none text-xs text-zinc-300"
                     >
+                      <option value={5}>5 recommendations</option>
                       <option value={10}>10 recommendations</option>
                       <option value={20}>20 recommendations</option>
                       <option value={50}>50 recommendations</option>
@@ -948,6 +1094,55 @@ export default function SeekerDashboard() {
 
             <form onSubmit={handleSaveProfile} className="space-y-6">
               
+              {/* Profile Picture Upload Section */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Profile Picture</label>
+                <div className="flex items-center gap-4">
+                  {profilePicture ? (
+                    <img src={profilePicture} alt="Profile Preview" className="w-20 h-20 rounded-full object-cover border border-white/10" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center text-zinc-500 text-xs">No Image</div>
+                  )}
+                  <div className="flex-1 space-y-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => setProfilePicture(reader.result);
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="text-xs text-zinc-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Disabled Name & Email */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Full Name (Read-Only)</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={user?.fullName || ""}
+                    className="w-full px-4 py-3 rounded-xl bg-zinc-900/60 border border-white/5 text-sm text-zinc-500 cursor-not-allowed"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Email Address (Read-Only)</label>
+                  <input
+                    type="email"
+                    disabled
+                    value={user?.email || ""}
+                    className="w-full px-4 py-3 rounded-xl bg-zinc-900/60 border border-white/5 text-sm text-zinc-500 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">City (Pakistan Location)</label>
@@ -994,6 +1189,19 @@ export default function SeekerDashboard() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Standard Hourly Rate (PKR/hr)</label>
+                  <input
+                    type="number"
+                    value={profileHourlyRate}
+                    onChange={(e) => setProfileHourlyRate(Number(e.target.value))}
+                    placeholder="e.g. 2500"
+                    className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Skills (Comma-separated)</label>
                 <input
@@ -1014,63 +1222,86 @@ export default function SeekerDashboard() {
                 />
               </div>
 
-              {/* Portfolio Add Control */}
-              <div className="p-5 rounded-2xl bg-zinc-950 border border-white/5 space-y-4">
-                <h3 className="font-bold text-lg">Add Portfolio Project</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Resume Link */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Resume link</label>
+                <div className="relative flex items-center">
+                  <span className="absolute left-4 text-zinc-500"><Link size={16} /></span>
                   <input
                     type="text"
-                    value={portfolioTitle}
-                    onChange={(e) => setPortfolioTitle(e.target.value)}
-                    placeholder="Project Title"
-                    className="px-4 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-sm"
-                  />
-                  <input
-                    type="text"
-                    value={portfolioTech}
-                    onChange={(e) => setPortfolioTech(e.target.value)}
-                    placeholder="Technologies (comma separated)"
-                    className="px-4 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-sm"
+                    value={profileResume}
+                    onChange={(e) => setProfileResume(e.target.value)}
+                    placeholder="https://... (Drive, PDF, personal site)"
+                    className="w-full pl-11 pr-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none focus:border-white/20 transition-all font-sans"
                   />
                 </div>
-                <textarea
-                  value={portfolioDesc}
-                  onChange={(e) => setPortfolioDesc(e.target.value)}
-                  placeholder="Provide a detailed description of the project, including scope, role, and details. The AI vectorizer will parse this description to match jobs."
-                  rows={2}
-                  className="w-full px-4 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-sm outline-none"
-                />
+              </div>
+
+              {/* Portfolio Website Link */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Portfolio / website</label>
+                <div className="relative flex items-center">
+                  <span className="absolute left-4 text-zinc-500"><Link size={16} /></span>
+                  <input
+                    type="text"
+                    value={profilePortfolioWebsite}
+                    onChange={(e) => setProfilePortfolioWebsite(e.target.value)}
+                    placeholder="https://... (GitHub, Behance, personal site)"
+                    className="w-full pl-11 pr-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none focus:border-white/20 transition-all font-sans"
+                  />
+                </div>
+              </div>
+
+              {/* Portfolio projects Modal Toggle Card */}
+              <div className="p-5 rounded-2xl bg-zinc-950 border border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-teal-500/10 border border-teal-500/25 flex items-center justify-center text-teal-400 shrink-0 mt-1 sm:mt-0">
+                    <LayoutGrid size={22} />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-zinc-200">Portfolio projects</h4>
+                    <p className="text-xs text-zinc-400 leading-relaxed max-w-lg">
+                      Case studies and work samples live in <strong className="text-zinc-200">My Portfolio</strong> and sync to the server. You can attach up to five when you apply to a job.
+                    </p>
+                  </div>
+                </div>
                 <button
                   type="button"
-                  onClick={handleAddPortfolio}
-                  className="px-4 py-2 bg-white/5 hover:bg-white/10 text-zinc-200 border border-white/10 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+                  onClick={() => setShowPortfolioModal(true)}
+                  className="px-5 py-2.5 bg-teal-500/10 hover:bg-teal-500/15 border border-teal-500/30 text-teal-300 font-bold text-xs rounded-xl transition-all shrink-0 self-start sm:self-center"
                 >
-                  <Plus size={14} /> Add Project Item
+                  Open My Portfolio
                 </button>
+              </div>
 
-                {/* Portfolio List */}
-                {portfolioList.length > 0 && (
-                  <div className="pt-4 border-t border-white/5 space-y-2.5">
-                    <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Added Projects</label>
-                    <div className="grid grid-cols-1 gap-3">
-                      {portfolioList.map((proj, idx) => (
-                        <div key={idx} className="p-3.5 rounded-xl bg-zinc-900/60 border border-white/5 flex items-center justify-between gap-4">
-                          <div>
-                            <h5 className="font-bold text-sm text-zinc-200">{proj.title}</h5>
-                            <p className="text-xs text-zinc-500 line-clamp-1 mt-0.5">{proj.description}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleDeletePortfolio(idx)}
-                            className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors shrink-0"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+              {/* Preferred Job Types Chips */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Preferred Job Types</label>
+                <div className="flex flex-wrap gap-2.5">
+                  {["Remote", "On-site", "Hybrid"].map((type) => {
+                    const isSelected = profilePreferredJobTypes.includes(type);
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setProfilePreferredJobTypes(prev => prev.filter(t => t !== type));
+                          } else {
+                            setProfilePreferredJobTypes(prev => [...prev, type]);
+                          }
+                        }}
+                        className={`px-4 py-2 text-xs font-bold rounded-full border transition-all ${
+                          isSelected 
+                            ? "bg-teal-500/10 text-teal-300 border-teal-500/40" 
+                            : "bg-zinc-900 text-zinc-400 border-white/5 hover:bg-zinc-800"
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <button
@@ -1081,6 +1312,243 @@ export default function SeekerDashboard() {
                 {profileLoading ? "Updating Profile..." : "Save Profile Details"}
               </button>
 
+            </form>
+
+            {/* Add Employer Profile Section */}
+            {!user?.roles?.includes("Employer") && (
+              <div className="mt-12 p-6 rounded-2xl bg-zinc-950 border border-white/5 space-y-6">
+                <div>
+                  <h3 className="text-xl font-bold">Add Employer Profile</h3>
+                  <p className="text-sm text-zinc-400 mt-1">Want to post jobs and hire professionals? Register your Employer profile to enable hiring options on this account.</p>
+                </div>
+                
+                {!showAddEmployer ? (
+                  <button
+                    onClick={() => setShowAddEmployer(true)}
+                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all"
+                  >
+                    Add Employer Profile
+                  </button>
+                ) : (
+                  <form onSubmit={handleAddEmployerProfile} className="space-y-4 pt-4 border-t border-white/5">
+                    {addEmpError && (
+                      <div className="p-4 rounded-xl bg-red-950/30 border border-red-500/20 text-red-400 text-sm">
+                        {addEmpError}
+                      </div>
+                    )}
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Owner's Name (Read-Only)</label>
+                        <input
+                          type="text"
+                          disabled
+                          value={user?.fullName || ""}
+                          className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-500 cursor-not-allowed"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Email Address (Read-Only)</label>
+                        <input
+                          type="email"
+                          disabled
+                          value={user?.email || ""}
+                          className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-500 cursor-not-allowed"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Business Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={companyName}
+                          onChange={(e) => setCompanyName(e.target.value)}
+                          placeholder="e.g. Acme Tech Solutions"
+                          className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Number of Employees</label>
+                        <select
+                          value={companyEmployeesCount}
+                          onChange={(e) => setCompanyEmployeesCount(e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200"
+                        >
+                          <option value="1 - 10">1 - 10 employees</option>
+                          <option value="10 - 50">10 - 50 employees</option>
+                          <option value="50 - 100">50 - 100 employees</option>
+                          <option value="100+">100+ employees</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Company Location (City)</label>
+                        <select
+                          value={companyCity}
+                          onChange={(e) => setCompanyCity(e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200"
+                        >
+                          {CITIES.map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Contact Phone</label>
+                        <input
+                          type="text"
+                          required
+                          value={companyPhone}
+                          onChange={(e) => setCompanyPhone(e.target.value)}
+                          placeholder="+92-300-1234567"
+                          className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Business Address</label>
+                        <input
+                          type="text"
+                          required
+                          value={companyAddress}
+                          onChange={(e) => setCompanyAddress(e.target.value)}
+                          placeholder="e.g. Sector F-6, Islamabad"
+                          className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Google Maps Location Link</label>
+                        <input
+                          type="text"
+                          value={companyGoogleMapsLink}
+                          onChange={(e) => setCompanyGoogleMapsLink(e.target.value)}
+                          placeholder="https://maps.google.com/..."
+                          className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Company Description (Bio)</label>
+                      <textarea
+                        required
+                        value={companyBio}
+                        onChange={(e) => setCompanyBio(e.target.value)}
+                        placeholder="Describe your company, industry, and scaling plans..."
+                        rows={4}
+                        className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Company Logo / Profile Pic (Optional File Only)</label>
+                      <div className="flex items-center gap-4">
+                        {companyPic ? (
+                          <img src={companyPic} alt="Company Logo" className="w-16 h-16 rounded-xl object-cover border border-white/10" />
+                        ) : (
+                          <div className="w-16 h-16 rounded-xl bg-zinc-900 border border-white/10 flex items-center justify-center text-zinc-500 text-xs">No Logo</div>
+                        )}
+                        <div className="flex-1 space-y-2">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => setCompanyPic(reader.result);
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                            className="text-xs text-zinc-400"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 pt-4">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddEmployer(false)}
+                        className="px-5 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold text-sm rounded-xl border border-white/5 transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={addEmpLoading}
+                        className="px-6 py-2.5 bg-white text-black font-bold text-sm rounded-xl hover:bg-zinc-200 transition-all disabled:opacity-50"
+                      >
+                        {addEmpLoading ? "Creating Employer..." : "Submit & Register Employer"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ================= TAB: SECURITY ================= */}
+        {activeTab === "security" && (
+          <div className="flex flex-col gap-6 max-w-xl">
+            <div>
+              <h2 className="text-3xl font-extrabold">Security Settings</h2>
+              <p className="text-sm text-zinc-400 mt-1">Change your account password securely. Requires validation of your current password.</p>
+            </div>
+
+            {securityMessage && (
+              <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-sm flex items-center gap-2">
+                <Check size={18} />
+                <span>{securityMessage}</span>
+              </div>
+            )}
+
+            {securityError && (
+              <div className="p-4 rounded-xl bg-red-950/30 border border-red-500/20 text-red-400 text-sm">
+                {securityError}
+              </div>
+            )}
+
+            <form onSubmit={handleChangePassword} className="space-y-6 bg-zinc-950 p-6 rounded-2xl border border-white/5">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Current Password</label>
+                <input
+                  type="password"
+                  required
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">New Password</label>
+                <input
+                  type="password"
+                  required
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minimum 6 characters"
+                  className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={securityLoading}
+                className="px-6 py-3 bg-white text-black font-bold text-sm rounded-xl hover:bg-zinc-200 transition-all glow-btn"
+              >
+                {securityLoading ? "Updating Password..." : "Update Password"}
+              </button>
             </form>
           </div>
         )}
@@ -1157,6 +1625,188 @@ export default function SeekerDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: PORTFOLIO MANAGEMENT ================= */}
+      {showPortfolioModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl bg-zinc-950 border border-white/10 p-6 md:p-8 rounded-2xl space-y-6 relative max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-white/5 pb-4">
+              <div>
+                <h3 className="text-2xl font-bold tracking-tight">My Portfolio</h3>
+                <p className="text-xs text-zinc-400 mt-1">Manage up to 5 case studies and projects synced to your profile</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPortfolioModal(false)}
+                className="text-zinc-500 hover:text-zinc-300 text-xs font-bold"
+              >
+                Close
+              </button>
+            </div>
+
+            {/* List of Added Projects */}
+            <div className="space-y-3">
+              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wide">Projects List ({portfolioList.length} / 5)</label>
+              {portfolioList.length === 0 ? (
+                <p className="text-xs text-zinc-500 italic">No projects added yet. Use the form below to add one.</p>
+              ) : (
+                <div className="grid grid-cols-1 gap-3">
+                  {portfolioList.map((proj, idx) => (
+                    <div key={idx} className="p-4 rounded-xl bg-zinc-900/40 border border-white/5 flex justify-between gap-4">
+                      <div className="space-y-2 flex-1">
+                        <div>
+                          <h5 className="font-bold text-sm text-zinc-200">{proj.title}</h5>
+                          {proj.role && (
+                            <span className="text-[10px] text-teal-400 font-semibold uppercase tracking-wider block mt-0.5">Role: {proj.role}</span>
+                          )}
+                        </div>
+                        {proj.technologies && proj.technologies.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {proj.technologies.map((t, tIdx) => (
+                              <span key={tIdx} className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-[9px] text-zinc-400">
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <p className="text-xs text-zinc-400 leading-relaxed font-sans">{proj.description}</p>
+                        
+                        {/* Project Images preview in the list */}
+                        {proj.images && proj.images.length > 0 && (
+                          <div className="flex flex-wrap gap-2 pt-1.5">
+                            {proj.images.map((img, imgIdx) => (
+                              <img 
+                                key={imgIdx} 
+                                src={img} 
+                                alt={`project-img-${imgIdx}`} 
+                                className="w-20 h-16 rounded object-cover border border-white/5" 
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePortfolio(idx)}
+                        className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors shrink-0 self-start"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Form to Add Project */}
+            {portfolioList.length < 5 && (
+              <div className="pt-6 border-t border-white/5 space-y-4">
+                <h4 className="font-bold text-sm text-zinc-300 uppercase tracking-wider">Add New Project</h4>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Project Title</label>
+                    <input
+                      type="text"
+                      value={portfolioTitle}
+                      onChange={(e) => setPortfolioTitle(e.target.value)}
+                      placeholder="e.g. E-Commerce Platform"
+                      className="w-full px-4 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-zinc-200 outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Technologies (Comma-separated)</label>
+                    <input
+                      type="text"
+                      value={portfolioTech}
+                      onChange={(e) => setPortfolioTech(e.target.value)}
+                      placeholder="React, Node.js, MongoDB"
+                      className="w-full px-4 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-zinc-200 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">My Role in Project (Optional)</label>
+                    <input
+                      type="text"
+                      value={portfolioRole}
+                      onChange={(e) => setPortfolioRole(e.target.value)}
+                      placeholder="e.g. Lead Fullstack Developer"
+                      className="w-full px-4 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-zinc-200 outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Attach Project Images (Multiple)</label>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files);
+                        files.forEach((file) => {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setPortfolioImages((prev) => [...prev, reader.result]);
+                          };
+                          reader.readAsDataURL(file);
+                        });
+                      }}
+                      className="text-xs text-zinc-400 block mt-1"
+                    />
+                    {portfolioImages.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        {portfolioImages.map((img, idx) => (
+                          <div key={idx} className="relative w-14 h-14 rounded overflow-hidden border border-white/10 group">
+                            <img src={img} alt="preview" className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setPortfolioImages((prev) => prev.filter((_, i) => i !== idx))}
+                              className="absolute inset-0 bg-black/60 flex items-center justify-center text-red-400 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-bold"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Project Description</label>
+                  <textarea
+                    value={portfolioDesc}
+                    onChange={(e) => setPortfolioDesc(e.target.value)}
+                    placeholder="Provide a detailed description of the project, including scope, role, and details."
+                    rows={3}
+                    className="w-full px-4 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-zinc-200 outline-none"
+                  />
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={handleAddPortfolio}
+                  className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+                >
+                  <Plus size={14} /> Add Project Item
+                </button>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-4 border-t border-white/5">
+              <button
+                type="button"
+                onClick={() => setShowPortfolioModal(false)}
+                className="px-5 py-2 bg-white text-black font-bold text-sm rounded-xl hover:bg-zinc-200 transition-all"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

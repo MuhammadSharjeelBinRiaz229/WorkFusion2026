@@ -12,5 +12,9 @@ router.post("/login", validate(LoginSchema), controller.login);
 router.post("/refresh", controller.refresh);
 router.get("/profile", authenticate, controller.getProfile);
 router.put("/profile", authenticate, validate(UpdateProfileSchema), controller.updateProfile);
+router.post("/add-profile", authenticate, controller.addProfile);
+router.post("/switch-role", authenticate, controller.switchRole);
+router.post("/change-password", authenticate, controller.changePassword);
+router.get("/talents", authenticate, controller.getTalents);
 
 export default router;

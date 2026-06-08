@@ -4,15 +4,31 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { 
   Plus, Briefcase, FileText, MessageSquare, Star, Sparkles,
-  MapPin, CheckCircle, Clock, XCircle, Send, LogOut, Check, ChevronRight
+  MapPin, CheckCircle, Clock, XCircle, Send, LogOut, Check, ChevronRight, User, Lock,
+  Search, Link, LayoutGrid
 } from "lucide-react";
 
 const CITIES = ["Islamabad", "Rawalpindi", "Lahore", "Karachi", "Faisalabad", "Peshawar", "Multan", "Sialkot"];
 
 export default function EmployerDashboard() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("postings"); // postings, createJob, applicants, messages, reviews
+  const [activeTab, setActiveTab] = useState("postings"); // postings, createJob, applicants, messages, profile, security, talents
   const [user, setUser] = useState(null);
+
+  // Find Talent state
+  const [talentQuery, setTalentQuery] = useState("");
+  const [talentCity, setTalentCity] = useState("");
+  const [talentPage, setTalentPage] = useState(1);
+  const [talentLimit, setTalentLimit] = useState(10);
+  const [talents, setTalents] = useState([]);
+  const [totalTalents, setTotalTalents] = useState(0);
+  const [talentsLoading, setTalentsLoading] = useState(false);
+
+  // AI recommendations pagination state
+  const [aiPage, setAiPage] = useState(1);
+
+  // Proposal detail popup modal state
+  const [selectedProposalForPopup, setSelectedProposalForPopup] = useState(null);
 
   // Job postings state
   const [postings, setPostings] = useState([]);
@@ -56,6 +72,25 @@ export default function EmployerDashboard() {
   const [commentVal, setCommentVal] = useState("");
   const [reviewLoading, setReviewLoading] = useState(false);
 
+  // Employer Profile Form states
+  const [profileCompanyName, setProfileCompanyName] = useState("");
+  const [profileGoogleMapsLink, setProfileGoogleMapsLink] = useState("");
+  const [profileAddress, setProfileAddress] = useState("");
+  const [profileEmployeesCount, setProfileEmployeesCount] = useState("1 - 10");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [profileBio, setProfileBio] = useState("");
+  const [profilePicture, setProfilePicture] = useState("");
+  const [profileMessage, setProfileMessage] = useState("");
+  const [profileError, setProfileError] = useState("");
+  const [profileLoading, setProfileLoading] = useState(false);
+
+  // Security password change states
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [securityMessage, setSecurityMessage] = useState("");
+  const [securityError, setSecurityError] = useState("");
+  const [securityLoading, setSecurityLoading] = useState(false);
+
   // Load user details
   useEffect(() => {
     const savedUser = localStorage.getItem("user");
@@ -65,6 +100,14 @@ export default function EmployerDashboard() {
     }
     const parsedUser = JSON.parse(savedUser);
     setUser(parsedUser);
+
+    setProfileCompanyName(parsedUser.companyName || "");
+    setProfileGoogleMapsLink(parsedUser.googleMapsLink || "");
+    setProfileAddress(parsedUser.address || "");
+    setProfileEmployeesCount(parsedUser.employeesCount || "1 - 10");
+    setProfilePhone(parsedUser.phone || "");
+    setProfileBio(parsedUser.bio || "");
+    setProfilePicture(parsedUser.profilePicture || "");
   }, [router]);
 
   // API Helper
@@ -143,6 +186,27 @@ export default function EmployerDashboard() {
     }
   }, [apiRequest]);
 
+  // Fetch Talents for employer search
+  const fetchTalents = useCallback(async () => {
+    setTalentsLoading(true);
+    try {
+      let query = `?page=${talentPage}&limit=${talentLimit}`;
+      if (talentQuery) query += `&query=${encodeURIComponent(talentQuery)}`;
+      if (talentCity) query += `&city=${encodeURIComponent(talentCity)}`;
+
+      const res = await apiRequest(`/auth/talents${query}`);
+      const result = await res.json();
+      if (result.success) {
+        setTalents(result.data.talents || []);
+        setTotalTalents(result.data.total || 0);
+      }
+    } catch (err) {
+      console.error("Failed to fetch talents list", err);
+    } finally {
+      setTalentsLoading(false);
+    }
+  }, [talentQuery, talentCity, talentPage, talentLimit, apiRequest]);
+
   // Fetch Messages for active chat
   const fetchMessages = useCallback(async (chatId) => {
     setMsgLoading(true);
@@ -166,14 +230,24 @@ export default function EmployerDashboard() {
       fetchPostings();
     } else if (activeTab === "messages") {
       fetchChats();
+    } else if (activeTab === "talents") {
+      fetchTalents();
     }
-  }, [activeTab, user, fetchPostings, fetchChats]);
+  }, [activeTab, user, fetchPostings, fetchChats, fetchTalents]);
+
+  // Fetch talents when page or filter city changes
+  useEffect(() => {
+    if (activeTab === "talents") {
+      fetchTalents();
+    }
+  }, [talentPage, talentCity, activeTab, fetchTalents]);
 
   // Select a different job posting
   useEffect(() => {
     if (selectedJob && activeTab === "applicants") {
       fetchApplicantsAndAI(selectedJob._id);
     }
+    setAiPage(1);
   }, [selectedJob, activeTab, fetchApplicantsAndAI]);
 
   // Job Submission
@@ -316,6 +390,90 @@ export default function EmployerDashboard() {
     router.push("/login");
   };
 
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    setProfileError("");
+    setProfileMessage("");
+    setProfileLoading(true);
+
+    try {
+      const res = await apiRequest("/auth/profile", {
+        method: "PUT",
+        body: JSON.stringify({
+          companyName: profileCompanyName,
+          googleMapsLink: profileGoogleMapsLink,
+          address: profileAddress,
+          employeesCount: profileEmployeesCount,
+          phone: profilePhone,
+          bio: profileBio,
+          profilePicture,
+        }),
+      });
+
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        throw new Error(result.message || "Failed to update profile");
+      }
+
+      setProfileMessage("Profile updated successfully!");
+      localStorage.setItem("user", JSON.stringify(result.data));
+      setUser(result.data);
+    } catch (err) {
+      setProfileError(err.message || "Error updating profile");
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setSecurityError("");
+    setSecurityMessage("");
+    setSecurityLoading(true);
+
+    try {
+      const res = await apiRequest("/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        throw new Error(result.message || "Failed to update password");
+      }
+      setSecurityMessage("Password updated successfully!");
+      setCurrentPassword("");
+      setNewPassword("");
+    } catch (err) {
+      setSecurityError(err.message || "Error updating password");
+    } finally {
+      setSecurityLoading(false);
+    }
+  };
+
+  const handleSwitchRole = async (targetRole) => {
+    try {
+      const res = await apiRequest("/auth/switch-role", {
+        method: "POST",
+        body: JSON.stringify({ role: targetRole }),
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        throw new Error(result.message || "Failed to switch profiles");
+      }
+      localStorage.setItem("accessToken", result.data.accessToken);
+      localStorage.setItem("refreshToken", result.data.refreshToken);
+      localStorage.setItem("user", JSON.stringify(result.data.user));
+      
+      if (targetRole === "Employer") {
+        router.push("/dashboard/employer");
+      } else {
+        router.push("/dashboard/seeker");
+      }
+    } catch (err) {
+      alert(err.message || "Error switching profiles");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#09090b] text-white flex flex-col md:flex-row">
       
@@ -369,11 +527,37 @@ export default function EmployerDashboard() {
               <FileText size={18} /> Applicants
             </button>
             <button
+              onClick={() => setActiveTab("talents")}
+              className={`w-full px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium transition-all ${activeTab === "talents" ? "bg-white text-black font-semibold" : "text-zinc-400 hover:bg-white/5"}`}
+            >
+              <Search size={18} /> Find Talent
+            </button>
+            <button
               onClick={() => setActiveTab("messages")}
               className={`w-full px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium transition-all ${activeTab === "messages" ? "bg-white text-black font-semibold" : "text-zinc-400 hover:bg-white/5"}`}
             >
               <MessageSquare size={18} /> Interview Chats
             </button>
+            <button
+              onClick={() => setActiveTab("profile")}
+              className={`w-full px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium transition-all ${activeTab === "profile" ? "bg-white text-black font-semibold" : "text-zinc-400 hover:bg-white/5"}`}
+            >
+              <User size={18} /> My Profile
+            </button>
+            <button
+              onClick={() => setActiveTab("security")}
+              className={`w-full px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium transition-all ${activeTab === "security" ? "bg-white text-black font-semibold" : "text-zinc-400 hover:bg-white/5"}`}
+            >
+              <Lock size={18} /> Security
+            </button>
+            {user?.roles && user.roles.includes("Service Seeker") && (
+              <button
+                onClick={() => handleSwitchRole("Service Seeker")}
+                className="w-full px-4 py-2.5 rounded-xl flex items-center gap-3 text-sm font-semibold text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 bg-amber-500/5 transition-all mt-4"
+              >
+                <Briefcase size={18} /> Switch to Seeker
+              </button>
+            )}
           </nav>
 
         </div>
@@ -672,7 +856,11 @@ export default function EmployerDashboard() {
                   ) : (
                     <div className="space-y-6">
                       {applicants.map((app) => (
-                        <div key={app._id} className="p-6 rounded-2xl bg-zinc-950 border border-white/5 space-y-4">
+                        <div 
+                          key={app._id} 
+                          onClick={() => setSelectedProposalForPopup(app)}
+                          className="p-6 rounded-2xl bg-zinc-950 border border-white/5 space-y-4 cursor-pointer hover:border-white/10 transition-colors"
+                        >
                           
                           {/* Header */}
                           <div className="flex flex-col sm:flex-row justify-between gap-4 border-b border-white/5 pb-4">
@@ -694,24 +882,24 @@ export default function EmployerDashboard() {
 
                           {/* Proposal */}
                           <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Candidate Proposal</label>
-                            <p className="text-sm text-zinc-300 leading-relaxed font-sans">{app.proposal}</p>
+                            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide font-sans">Candidate Proposal (Click card for details)</label>
+                            <p className="text-sm text-zinc-300 leading-relaxed font-sans line-clamp-2">{app.proposal}</p>
                           </div>
 
                           {/* Candidate details */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 text-xs">
-                            <div className="space-y-1">
-                              <span className="text-zinc-500 font-bold block uppercase tracking-wider text-[9px]">Candidate Skills</span>
-                              <p className="text-zinc-300">{app.seekerId.skills.join(", ")}</p>
+                          <div className="flex flex-wrap items-center gap-5 pt-2 text-xs">
+                            <div className="flex items-center gap-1 text-amber-400">
+                              <Star size={14} fill="currentColor" className="shrink-0" />
+                              <span className="font-bold">{app.seekerId.rating || 5.0}</span>
+                              <span className="text-zinc-500">({app.seekerId.reviewCount || 0} reviews)</span>
                             </div>
-                            <div className="space-y-1">
-                              <span className="text-zinc-500 font-bold block uppercase tracking-wider text-[9px]">Experience</span>
-                              <p className="text-zinc-300">{app.seekerId.experience} years</p>
+                            <div className="text-zinc-500">
+                              Completed Similar Jobs: <strong className="text-zinc-300">{app.completedSimilarJobsCount || 0}</strong>
                             </div>
                           </div>
 
                           {/* Action Bar */}
-                          <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-white/5 justify-end">
+                          <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-white/5 justify-end" onClick={(e) => e.stopPropagation()}>
                             {app.status === "Applied" && (
                               <button
                                 onClick={() => handleStatusUpdate(app._id, "Interview")}
@@ -783,7 +971,7 @@ export default function EmployerDashboard() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {candidateRecommendations.map((rec, idx) => (
+                      {candidateRecommendations.slice((aiPage - 1) * 5, aiPage * 5).map((rec, idx) => (
                         <div key={idx} className="p-4 rounded-xl bg-zinc-950 border border-white/5 space-y-3">
                           <div className="flex justify-between items-center gap-2">
                             <span className="font-bold text-sm text-zinc-200">{rec.candidate.fullName}</span>
@@ -811,6 +999,29 @@ export default function EmployerDashboard() {
                           </div>
                         </div>
                       ))}
+
+                      {/* AI Recommendations Pagination Controls */}
+                      {candidateRecommendations.length > 5 && (
+                        <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                          <button
+                            disabled={aiPage <= 1}
+                            onClick={() => setAiPage((p) => Math.max(1, p - 1))}
+                            className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-white/10 text-zinc-300 disabled:opacity-30 disabled:pointer-events-none hover:bg-white/5 transition-colors text-xs font-semibold"
+                          >
+                            Prev
+                          </button>
+                          <span className="text-[10px] text-zinc-500">
+                            Page {aiPage} of {Math.ceil(candidateRecommendations.length / 5)}
+                          </span>
+                          <button
+                            disabled={aiPage >= Math.ceil(candidateRecommendations.length / 5)}
+                            onClick={() => setAiPage((p) => p + 1)}
+                            className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-white/10 text-zinc-300 disabled:opacity-30 disabled:pointer-events-none hover:bg-white/5 transition-colors text-xs font-semibold"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -917,6 +1128,385 @@ export default function EmployerDashboard() {
           </div>
         )}
 
+        {/* ================= TAB: PROFILE ================= */}
+        {activeTab === "profile" && (
+          <div className="flex flex-col gap-6 max-w-3xl">
+            <div>
+              <h2 className="text-3xl font-extrabold">Employer Profile</h2>
+              <p className="text-sm text-zinc-400 mt-1">Keep your business information updated to attract top professionals</p>
+            </div>
+
+            {profileMessage && (
+              <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm flex items-center gap-2">
+                <Check size={18} />
+                <span>{profileMessage}</span>
+              </div>
+            )}
+
+            {profileError && (
+              <div className="p-4 rounded-xl bg-red-950/30 border border-red-500/20 text-red-400 text-sm">
+                {profileError}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveProfile} className="space-y-6">
+              
+              {/* Profile Picture Upload Section (File Only) */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Company Logo / Profile Pic</label>
+                <div className="flex items-center gap-4">
+                  {profilePicture ? (
+                    <img src={profilePicture} alt="Company Logo Preview" className="w-20 h-20 rounded-xl object-cover border border-white/10" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-xl bg-zinc-900 border border-white/10 flex items-center justify-center text-zinc-500 text-xs">No Logo</div>
+                  )}
+                  <div className="flex-1 space-y-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => setProfilePicture(reader.result);
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="text-xs text-zinc-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Disabled Email */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Owner / Employer Name</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={user?.fullName || ""}
+                    className="w-full px-4 py-3 rounded-xl bg-zinc-900/60 border border-white/5 text-sm text-zinc-500 cursor-not-allowed"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Email Address (Read-Only)</label>
+                  <input
+                    type="email"
+                    disabled
+                    value={user?.email || ""}
+                    className="w-full px-4 py-3 rounded-xl bg-zinc-900/60 border border-white/5 text-sm text-zinc-500 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Business / Company Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={profileCompanyName}
+                    onChange={(e) => setProfileCompanyName(e.target.value)}
+                    placeholder="Acme Corporation"
+                    className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Number of Employees</label>
+                  <select
+                    value={profileEmployeesCount}
+                    onChange={(e) => setProfileEmployeesCount(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200"
+                  >
+                    <option value="1 - 10">1 - 10 employees</option>
+                    <option value="10 - 50">10 - 50 employees</option>
+                    <option value="50 - 100">50 - 100 employees</option>
+                    <option value="100+">100+ employees</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">City (Pakistan Location)</label>
+                  <select
+                    value={user?.city || ""}
+                    disabled
+                    className="w-full px-4 py-3 rounded-xl bg-zinc-900/60 border border-white/5 text-sm text-zinc-500 cursor-not-allowed"
+                  >
+                    <option value={user?.city || ""}>{user?.city || ""}</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Contact Phone Number</label>
+                  <input
+                    type="text"
+                    value={profilePhone}
+                    onChange={(e) => setProfilePhone(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Business Address</label>
+                  <input
+                    type="text"
+                    required
+                    value={profileAddress}
+                    onChange={(e) => setProfileAddress(e.target.value)}
+                    placeholder="e.g. Sector F-7, Islamabad"
+                    className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Google Maps Location Link</label>
+                  <input
+                    type="text"
+                    value={profileGoogleMapsLink}
+                    onChange={(e) => setProfileGoogleMapsLink(e.target.value)}
+                    placeholder="https://maps.google.com/..."
+                    className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Company Bio / Description</label>
+                <textarea
+                  value={profileBio}
+                  onChange={(e) => setProfileBio(e.target.value)}
+                  rows={4}
+                  className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={profileLoading}
+                className="px-6 py-3 bg-white text-black font-bold text-sm rounded-xl hover:bg-zinc-200 transition-all glow-btn"
+              >
+                {profileLoading ? "Updating Profile..." : "Save Profile Details"}
+              </button>
+
+            </form>
+          </div>
+        )}
+
+        {/* ================= TAB: SECURITY ================= */}
+        {activeTab === "security" && (
+          <div className="flex flex-col gap-6 max-w-xl">
+            <div>
+              <h2 className="text-3xl font-extrabold">Security Settings</h2>
+              <p className="text-sm text-zinc-400 mt-1">Change your account password securely. Requires validation of your current password.</p>
+            </div>
+
+            {securityMessage && (
+              <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-sm flex items-center gap-2">
+                <Check size={18} />
+                <span>{securityMessage}</span>
+              </div>
+            )}
+
+            {securityError && (
+              <div className="p-4 rounded-xl bg-red-950/30 border border-red-500/20 text-red-400 text-sm">
+                {securityError}
+              </div>
+            )}
+
+            <form onSubmit={handleChangePassword} className="space-y-6 bg-zinc-950 p-6 rounded-2xl border border-white/5">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Current Password</label>
+                <input
+                  type="password"
+                  required
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">New Password</label>
+                <input
+                  type="password"
+                  required
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minimum 6 characters"
+                  className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={securityLoading}
+                className="px-6 py-3 bg-white text-black font-bold text-sm rounded-xl hover:bg-zinc-200 transition-all glow-btn"
+              >
+                {securityLoading ? "Updating Password..." : "Update Password"}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* ================= TAB: TALENTS ================= */}
+        {activeTab === "talents" && (
+          <div className="flex flex-col gap-6">
+            <div>
+              <h2 className="text-3xl font-extrabold">Find Talent</h2>
+              <p className="text-sm text-zinc-400 mt-1">Search and filter service seekers and freelance candidates by skill or city</p>
+            </div>
+
+            {/* Filters */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-zinc-950 border border-white/5">
+              <div className="relative flex items-center">
+                <span className="absolute left-4 text-zinc-500"><Search size={16} /></span>
+                <input
+                  type="text"
+                  value={talentQuery}
+                  onChange={(e) => { setTalentQuery(e.target.value); setTalentPage(1); }}
+                  placeholder="Keywords, skills, names..."
+                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-zinc-900 border border-white/10 focus:border-blue-500/50 outline-none text-sm text-zinc-200"
+                />
+              </div>
+
+              <select
+                value={talentCity}
+                onChange={(e) => { setTalentCity(e.target.value); setTalentPage(1); }}
+                className="px-4 py-2.5 rounded-xl bg-zinc-900 border border-white/10 outline-none text-sm text-zinc-400"
+              >
+                <option value="">All Cities</option>
+                {CITIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+
+              <button
+                onClick={fetchTalents}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition-all"
+              >
+                Search Candidates
+              </button>
+            </div>
+
+            {talentsLoading ? (
+              <span className="text-sm text-zinc-500 font-sans">Querying service seekers...</span>
+            ) : talents.length === 0 ? (
+              <div className="p-8 text-center rounded-xl bg-white/5 border border-white/5 text-zinc-500 text-sm font-sans">
+                No matching talents found. Try checking your spelling or filters.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {talents.map((talent) => (
+                    <div
+                      key={talent._id}
+                      className="glass-card p-6 rounded-2xl border border-white/5 flex flex-col justify-between gap-4"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-4">
+                          {talent.profilePicture ? (
+                            <img
+                              src={talent.profilePicture}
+                              alt={talent.fullName}
+                              className="w-14 h-14 rounded-full object-cover border border-white/10 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-14 h-14 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center text-zinc-500 text-xs shrink-0 font-bold font-sans">
+                              {talent.fullName.charAt(0)}
+                            </div>
+                          )}
+                          <div>
+                            <h4 className="font-bold text-lg text-zinc-200">{talent.fullName}</h4>
+                            <div className="flex items-center gap-2 text-xs text-zinc-400 mt-0.5 font-sans">
+                              <span className="flex items-center gap-1 text-zinc-500"><MapPin size={12} /> {talent.city}</span>
+                              {talent.hourlyRate > 0 && (
+                                <span className="font-semibold text-blue-400">• PKR {talent.hourlyRate.toLocaleString()} / hr</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {talent.bio && (
+                          <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed font-sans">{talent.bio}</p>
+                        )}
+
+                        {talent.skills && talent.skills.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {talent.skills.map((s, idx) => (
+                              <span key={idx} className="px-2 py-0.5 rounded bg-zinc-900 border border-white/5 text-[10px] text-zinc-400 font-sans">
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-4 text-xs pt-1">
+                          <div className="flex items-center gap-1 text-amber-400">
+                            <Star size={14} fill="currentColor" />
+                            <span className="font-bold font-sans">{talent.rating || 5.0}</span>
+                            <span className="text-zinc-500 font-sans">({talent.reviewCount || 0} reviews)</span>
+                          </div>
+                          <div className="text-zinc-500 font-sans">
+                            Exp: <strong className="text-zinc-300">{talent.experience || 0} yrs</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-white/5 pt-4 flex justify-between items-center mt-2">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20 font-semibold uppercase font-sans">
+                          {talent.availability || "Available"}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setSelectedProposalForPopup({
+                              seekerId: talent,
+                              proposal: "This is a direct profile inspection via the Find Talent directory.",
+                              expectedSalary: talent.hourlyRate || 0,
+                              estimatedTime: "N/A",
+                              dummy: true,
+                            });
+                          }}
+                          className="px-3.5 py-1.5 bg-white text-black hover:bg-zinc-200 text-xs font-bold rounded-lg transition-colors"
+                        >
+                          View Full Profile
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Pagination Controls */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-zinc-950 border border-white/5 mt-4">
+                  <span className="text-xs text-zinc-400 font-sans">
+                    Showing {(talentPage - 1) * talentLimit + 1} - {Math.min(talentPage * talentLimit, totalTalents)} of {totalTalents} talents
+                  </span>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      disabled={talentPage <= 1}
+                      onClick={() => setTalentPage((p) => Math.max(1, p - 1))}
+                      className="px-3.5 py-2 rounded-xl bg-zinc-900 border border-white/10 text-zinc-300 disabled:opacity-30 disabled:pointer-events-none hover:bg-white/5 transition-colors text-xs font-semibold"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      disabled={talentPage >= Math.ceil(totalTalents / talentLimit)}
+                      onClick={() => setTalentPage((p) => p + 1)}
+                      className="px-3.5 py-2 rounded-xl bg-zinc-900 border border-white/10 text-zinc-300 disabled:opacity-30 disabled:pointer-events-none hover:bg-white/5 transition-colors text-xs font-semibold"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
       </main>
 
       {/* ================= MODAL: LEAVE REVIEW ================= */}
@@ -973,6 +1563,217 @@ export default function EmployerDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: PROPOSAL DETAIL POPUP ================= */}
+      {selectedProposalForPopup && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl bg-zinc-950 border border-white/10 p-6 md:p-8 rounded-2xl space-y-6 relative max-h-[90vh] overflow-y-auto">
+            
+            {/* Header */}
+            <div className="flex justify-between items-start border-b border-white/5 pb-5">
+              <div className="flex items-center gap-4">
+                {selectedProposalForPopup.seekerId.profilePicture ? (
+                  <img
+                    src={selectedProposalForPopup.seekerId.profilePicture}
+                    alt={selectedProposalForPopup.seekerId.fullName}
+                    className="w-16 h-16 rounded-full object-cover border border-white/10"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center text-zinc-500 font-bold text-lg font-sans">
+                    {selectedProposalForPopup.seekerId.fullName.charAt(0)}
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-2xl font-bold tracking-tight text-zinc-100">{selectedProposalForPopup.seekerId.fullName}</h3>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400 mt-1 font-sans">
+                    <span className="flex items-center gap-1"><MapPin size={13} /> {selectedProposalForPopup.seekerId.city}</span>
+                    {selectedProposalForPopup.seekerId.hourlyRate > 0 && (
+                      <span className="font-semibold text-blue-400">• Standard Hourly Rate: PKR {selectedProposalForPopup.seekerId.hourlyRate.toLocaleString()} / hr</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedProposalForPopup(null)}
+                className="text-zinc-500 hover:text-zinc-300 font-bold text-xs bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-all"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              
+              {/* Left Column: Proposal Details & About */}
+              <div className="md:col-span-2 space-y-5">
+                
+                {/* Proposal Bid Details */}
+                <div className="p-5 rounded-xl bg-zinc-900/40 border border-white/5 space-y-3">
+                  <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wide font-sans">Proposal Details</h4>
+                  
+                  {!selectedProposalForPopup.dummy && (
+                    <div className="grid grid-cols-2 gap-4 text-xs border-b border-white/5 pb-3 font-sans">
+                      <div>
+                        <span className="text-zinc-500 block">Bid Value</span>
+                        <strong className="text-zinc-200 text-sm">
+                          PKR {selectedProposalForPopup.expectedSalary?.toLocaleString()}{selectedJob?.workType === "Hourly" ? " / hr" : ""}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-zinc-500 block">Estimated Time</span>
+                        <strong className="text-zinc-200 text-sm">{selectedProposalForPopup.estimatedTime}</strong>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <span className="text-zinc-500 block text-xs font-sans">Proposal Statement</span>
+                    <p className="text-sm text-zinc-300 leading-relaxed font-sans whitespace-pre-wrap">
+                      {selectedProposalForPopup.proposal}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Biography */}
+                {selectedProposalForPopup.seekerId.bio && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wide font-sans">Biography</h4>
+                    <p className="text-sm text-zinc-300 leading-relaxed font-sans">
+                      {selectedProposalForPopup.seekerId.bio}
+                    </p>
+                  </div>
+                )}
+
+                {/* Skills */}
+                {selectedProposalForPopup.seekerId.skills && selectedProposalForPopup.seekerId.skills.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wide font-sans">Candidate Skills</h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedProposalForPopup.seekerId.skills.map((s, idx) => (
+                        <span key={idx} className="px-2.5 py-1 rounded-full bg-zinc-900 border border-white/5 text-xs text-zinc-300 font-sans">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Contact Links & Info */}
+              <div className="space-y-5">
+                
+                {/* Links Section */}
+                <div className="p-5 rounded-xl bg-zinc-900/40 border border-white/5 space-y-4">
+                  <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wide font-sans">Documents & Links</h4>
+                  
+                  {/* Resume Link */}
+                  <div className="space-y-1 font-sans">
+                    <span className="text-[10px] text-zinc-500 font-bold block uppercase tracking-wider">Resume / CV</span>
+                    {selectedProposalForPopup.seekerId.resume ? (
+                      <a
+                        href={selectedProposalForPopup.seekerId.resume}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-medium text-teal-400 hover:text-teal-300 transition-colors flex items-center gap-1.5 break-all font-sans"
+                      >
+                        <Link size={12} /> {selectedProposalForPopup.seekerId.resume}
+                      </a>
+                    ) : (
+                      <span className="text-xs text-zinc-600 italic">No resume uploaded</span>
+                    )}
+                  </div>
+
+                  {/* Portfolio Website Link */}
+                  <div className="space-y-1 font-sans">
+                    <span className="text-[10px] text-zinc-500 font-bold block uppercase tracking-wider">Portfolio Website</span>
+                    {selectedProposalForPopup.seekerId.portfolioWebsite ? (
+                      <a
+                        href={selectedProposalForPopup.seekerId.portfolioWebsite}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-medium text-teal-400 hover:text-teal-300 transition-colors flex items-center gap-1.5 break-all font-sans"
+                      >
+                        <Link size={12} /> {selectedProposalForPopup.seekerId.portfolioWebsite}
+                      </a>
+                    ) : (
+                      <span className="text-xs text-zinc-600 italic">No website provided</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Candidate Stats */}
+                <div className="p-5 rounded-xl bg-zinc-900/40 border border-white/5 space-y-3 text-xs font-sans">
+                  <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wide">Professional Stats</h4>
+                  <div className="flex justify-between items-center">
+                    <span className="text-zinc-500">Rating</span>
+                    <span className="font-bold text-amber-400 flex items-center gap-0.5">
+                      ★ {selectedProposalForPopup.seekerId.rating || 5}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-zinc-500">Reviews</span>
+                    <span className="font-bold text-zinc-300">{selectedProposalForPopup.seekerId.reviewCount || 0} reviews</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-zinc-500">Experience</span>
+                    <span className="font-bold text-zinc-300">{selectedProposalForPopup.seekerId.experience || 0} years</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Portfolio Projects Section */}
+            {selectedProposalForPopup.seekerId.portfolio && selectedProposalForPopup.seekerId.portfolio.length > 0 && (
+              <div className="border-t border-white/5 pt-6 space-y-4">
+                <h4 className="text-sm font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5 font-sans">
+                  <LayoutGrid size={16} /> Portfolio Case Studies ({selectedProposalForPopup.seekerId.portfolio.length})
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {selectedProposalForPopup.seekerId.portfolio.map((proj, pIdx) => (
+                    <div key={pIdx} className="p-5 rounded-xl bg-zinc-900/35 border border-white/5 space-y-3 flex flex-col justify-between">
+                      <div className="space-y-2">
+                        <h5 className="font-bold text-zinc-200">{proj.title}</h5>
+                        {proj.role && (
+                          <span className="text-[10px] text-teal-400 font-bold uppercase tracking-wider block font-sans">Role: {proj.role}</span>
+                        )}
+                        <p className="text-xs text-zinc-400 leading-relaxed font-sans">{proj.description}</p>
+                        
+                        {proj.technologies && proj.technologies.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {proj.technologies.map((t, tIdx) => (
+                              <span key={tIdx} className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-[9px] text-zinc-400 font-semibold font-sans">
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Case Study Image Gallery */}
+                      {proj.images && proj.images.length > 0 && (
+                        <div className="pt-2">
+                          <span className="text-[9px] font-bold text-zinc-500 uppercase block pb-1 font-sans">Project Screenshots</span>
+                          <div className="flex flex-wrap gap-2">
+                            {proj.images.map((img, imgIdx) => (
+                              <img
+                                key={imgIdx}
+                                src={img}
+                                alt={`case-study-screenshot-${imgIdx}`}
+                                className="w-20 h-16 object-cover rounded border border-white/10 hover:scale-105 transition-transform cursor-pointer"
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
