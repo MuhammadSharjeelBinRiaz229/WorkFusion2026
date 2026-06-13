@@ -15,6 +15,7 @@ const RecommendationSchema = new Schema({
   },
   score: { type: Number, required: true },
   reason: [{ type: String }],
+  missingSkills: [{ type: String }],
   generatedAt: { type: Date, default: Date.now },
 });
 

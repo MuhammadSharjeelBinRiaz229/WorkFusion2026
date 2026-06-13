@@ -84,6 +84,7 @@ export class RecommendationService {
             $set: {
               score: rec.score,
               reason: rec.reason,
+              missingSkills: rec.missingSkills || [],
               generatedAt: new Date(),
             },
           },
@@ -106,6 +107,7 @@ export class RecommendationService {
             job: jobDoc,
             score: rec.score,
             reason: rec.reason,
+            missingSkills: rec.missingSkills || [],
           };
         })
         .filter((item) => item !== null)
@@ -116,11 +118,18 @@ export class RecommendationService {
     } catch (err) {
       logger.error(`RecommendationService API call failed: ${err.message}. Falling back to default sorting.`);
       const matchedJobs = jobsToMatch.slice(0, limit);
-      return matchedJobs.map((job) => ({
-        job,
-        score: 70,
-        reason: ["Matched Preferred Category"],
-      }));
+      return matchedJobs.map((job) => {
+        const seekerSkills = seeker.skills.map((s) => s.toLowerCase());
+        const missingSkills = job.requiredSkills.filter(
+          (s) => !seekerSkills.includes(s.toLowerCase())
+        );
+        return {
+          job,
+          score: 70,
+          reason: ["Matched Preferred Category"],
+          missingSkills,
+        };
+      });
     }
   }
 

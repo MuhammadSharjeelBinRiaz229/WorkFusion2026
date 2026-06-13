@@ -5,8 +5,9 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { 
   ArrowLeft, Briefcase, MapPin, Sparkles, CheckCircle, Clock, 
-  XCircle, Send, Star, User, DollarSign, Calendar
+  XCircle, Send, Star, User, DollarSign, Calendar, ArrowRight
 } from "lucide-react";
+import ThemeToggle from "../../../components/ThemeToggle";
 
 export default function JobDetailPage() {
   const router = useRouter();
@@ -29,18 +30,50 @@ export default function JobDetailPage() {
   const [appSubmitLoading, setAppSubmitLoading] = useState(false);
   const [appSuccessMessage, setAppSuccessMessage] = useState("");
 
-  // API Request helper
+  // API Request helper with auto token refresh
   const apiRequest = useCallback(async (endpoint, options = {}) => {
-    const token = localStorage.getItem("accessToken");
+    let token = localStorage.getItem("accessToken");
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
     const headers = {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     };
-    return fetch(`http://localhost:5000/api/v1${endpoint}`, {
+    let res = await fetch(`${apiUrl}${endpoint}`, {
       ...options,
       headers,
     });
+    if (res.status === 401) {
+      const refreshToken = localStorage.getItem("refreshToken");
+      if (refreshToken) {
+        try {
+          const refreshRes = await fetch(`${apiUrl}/auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken }),
+          });
+          if (refreshRes.ok) {
+            const refreshResult = await refreshRes.json();
+            if (refreshResult.success && refreshResult.data.accessToken) {
+              const newAccessToken = refreshResult.data.accessToken;
+              localStorage.setItem("accessToken", newAccessToken);
+              const retryHeaders = {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${newAccessToken}`,
+                ...options.headers,
+              };
+              res = await fetch(`${apiUrl}${endpoint}`, {
+                ...options,
+                headers: retryHeaders,
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Token refresh failed:", err);
+        }
+      }
+    }
+    return res;
   }, []);
 
   // Fetch job details and check application status
@@ -131,7 +164,7 @@ export default function JobDetailPage() {
 
   if (jobLoading) {
     return (
-      <div className="min-h-screen bg-[#09090b] text-white flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-50 dark:bg-[#09090b] text-zinc-900 dark:text-white flex items-center justify-center transition-colors duration-300">
         <span className="text-zinc-500 text-sm">Loading job specifications...</span>
       </div>
     );
@@ -139,9 +172,9 @@ export default function JobDetailPage() {
 
   if (jobError || !job) {
     return (
-      <div className="min-h-screen bg-[#09090b] text-white flex flex-col items-center justify-center gap-4">
-        <span className="text-red-400 text-sm">{jobError || "Job not found"}</span>
-        <Link href="/dashboard/seeker" className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-xs hover:bg-white/10 transition-colors">
+      <div className="min-h-screen bg-zinc-50 dark:bg-[#09090b] text-zinc-900 dark:text-white flex flex-col items-center justify-center gap-4 transition-colors duration-300">
+        <span className="text-red-500 dark:text-red-400 text-sm">{jobError || "Job not found"}</span>
+        <Link href="/dashboard/seeker" className="px-4 py-2 bg-zinc-200 hover:bg-zinc-300 dark:bg-white/5 border border-zinc-300 dark:border-white/10 rounded-xl text-xs text-zinc-700 dark:text-zinc-300 transition-colors">
           Go back to dashboard
         </Link>
       </div>
@@ -149,18 +182,21 @@ export default function JobDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white flex flex-col">
+    <div className="min-h-screen bg-zinc-50 dark:bg-[#09090b] text-zinc-900 dark:text-white flex flex-col transition-colors duration-300">
       <main className="max-w-6xl mx-auto px-6 py-10 w-full flex-1 flex flex-col gap-8">
         
         {/* Navigation & Header */}
-        <div className="flex items-center justify-between border-b border-white/5 pb-6">
+        <div className="flex items-center justify-between border-b border-zinc-200 dark:border-white/5 pb-6">
           <Link 
             href="/dashboard/seeker" 
-            className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors text-sm font-semibold"
+            className="flex items-center gap-2 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-white transition-colors text-sm font-semibold"
           >
             <ArrowLeft size={16} /> Back to Job Feed
           </Link>
-          <span className="text-zinc-500 text-xs font-medium">Job Reference: {job._id}</span>
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+            <span className="text-zinc-500 text-xs font-medium">Job Reference: {job._id}</span>
+          </div>
         </div>
 
         {/* Job Main Details & Form Layout */}
@@ -172,24 +208,24 @@ export default function JobDetailPage() {
             {/* Header info card */}
             <div className="glass-card p-8 rounded-3xl space-y-4">
               <div className="flex flex-wrap items-center gap-3">
-                <span className="text-xs px-2.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold uppercase tracking-wider font-sans">
+                <span className="text-xs px-2.5 py-0.5 rounded bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/20 font-bold uppercase tracking-wider font-sans">
                   {job.category}
                 </span>
-                <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase ${job.status === "Open" ? "bg-green-500/10 text-green-400 border border-green-500/20" : "bg-zinc-800 text-zinc-500"}`}>
+                <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase ${job.status === "Open" ? "bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-500"}`}>
                   {job.status}
                 </span>
               </div>
               <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight leading-tight">
                 {job.title}
               </h1>
-              <div className="flex flex-wrap items-center gap-6 pt-2 text-xs text-zinc-500 border-t border-white/5 mt-4">
+              <div className="flex flex-wrap items-center gap-6 pt-2 text-xs text-zinc-500 border-t border-zinc-200 dark:border-white/5 mt-4">
                 <span className="flex items-center gap-1.5"><MapPin size={14} /> {job.location}</span>
                 <span className="flex items-center gap-1.5"><Briefcase size={14} /> {job.serviceType} • {job.workType}</span>
-                <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 font-semibold border border-white/5">{job.experienceLevel}</span>
+                <span className="px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold border border-zinc-300 dark:border-white/5">{job.experienceLevel}</span>
                 {job.timeline && (
-                  <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 font-semibold border border-white/5">{job.timeline}</span>
+                  <span className="px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold border border-zinc-300 dark:border-white/5">{job.timeline}</span>
                 )}
-                <span className="flex items-center gap-1.5 text-green-400">
+                <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
                   <DollarSign size={14} /> PKR {job.budget.toLocaleString()}{job.workType === "Hourly" ? " / hr" : ""}
                 </span>
                 <span className="flex items-center gap-1.5"><Calendar size={14} /> Deadline: {new Date(job.deadline).toLocaleDateString()}</span>
@@ -198,9 +234,9 @@ export default function JobDetailPage() {
 
             {/* Description */}
             <div className="space-y-3">
-              <h3 className="font-bold text-lg text-zinc-200">Position Guidelines & Expectations</h3>
-              <div className="p-6 rounded-2xl bg-zinc-950/60 border border-white/5">
-                <p className="text-zinc-300 leading-relaxed font-sans whitespace-pre-line text-sm md:text-base">
+              <h3 className="font-bold text-lg text-zinc-800 dark:text-zinc-200">Position Guidelines & Expectations</h3>
+              <div className="p-6 rounded-2xl bg-white dark:bg-zinc-950/60 border border-zinc-200 dark:border-white/5 shadow-sm">
+                <p className="text-zinc-700 dark:text-zinc-300 leading-relaxed font-sans whitespace-pre-line text-sm md:text-base">
                   {job.description}
                 </p>
               </div>
@@ -208,30 +244,50 @@ export default function JobDetailPage() {
 
             {/* Required Skills */}
             <div className="space-y-3">
-              <h3 className="font-bold text-lg text-zinc-200">Required Competencies</h3>
+              <h3 className="font-bold text-lg text-zinc-800 dark:text-zinc-200">Required Competencies</h3>
               <div className="flex flex-wrap gap-2.5">
-                {job.requiredSkills.map((sk, idx) => (
-                  <span key={idx} className="px-3.5 py-1.5 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-300 font-semibold font-sans">
-                    {sk}
-                  </span>
-                ))}
+                {job.requiredSkills.map((sk, idx) => {
+                  const isSeeker = user?.role === "Service Seeker";
+                  const userSkills = user?.skills ? user.skills.map((s) => s.toLowerCase()) : [];
+                  const hasSkill = userSkills.includes(sk.toLowerCase());
+                  
+                  return (
+                    <span 
+                      key={idx} 
+                      className={`px-3.5 py-1.5 rounded-xl border text-sm font-semibold font-sans flex items-center gap-1.5 transition-all ${
+                        !isSeeker
+                          ? "bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-300"
+                          : hasSkill
+                            ? "bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400"
+                            : "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400"
+                      }`}
+                    >
+                      {isSeeker && (
+                        hasSkill 
+                          ? <CheckCircle size={14} className="text-green-600 dark:text-green-400 shrink-0" />
+                          : <XCircle size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                      )}
+                      {sk}
+                    </span>
+                  );
+                })}
               </div>
             </div>
 
             {/* Employer info */}
             <div className="space-y-3">
-              <h3 className="font-bold text-lg text-zinc-200">Hiring Organization</h3>
-              <div className="p-6 rounded-2xl bg-zinc-950/40 border border-white/5 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 shrink-0">
+              <h3 className="font-bold text-lg text-zinc-800 dark:text-zinc-200">Hiring Organization</h3>
+              <div className="p-6 rounded-2xl bg-white dark:bg-zinc-950/40 border border-zinc-200 dark:border-white/5 flex items-center gap-4 shadow-sm">
+                <div className="w-12 h-12 rounded-full bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 flex items-center justify-center text-zinc-700 dark:text-zinc-300 shrink-0">
                   <User size={20} />
                 </div>
                 <div>
-                  <h4 className="font-bold text-zinc-200">{job.employerId?.fullName || "Employer Manager"}</h4>
-                  <div className="flex items-center gap-1.5 text-xs text-zinc-500 mt-1">
+                  <h4 className="font-bold text-zinc-800 dark:text-zinc-200">{job.employerId?.fullName || "Employer Manager"}</h4>
+                  <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-500 mt-1">
                     <span>Base: {job.employerId?.city || job.location}</span>
                     <span>•</span>
-                    <span className="flex items-center gap-0.5 text-amber-400 font-semibold">
-                      <Star size={12} className="fill-amber-400 text-amber-400" /> {job.employerId?.rating || "5.0"}
+                    <span className="flex items-center gap-0.5 text-amber-500 dark:text-amber-400 font-semibold">
+                      <Star size={12} className="fill-amber-500 dark:fill-amber-400 text-amber-500 dark:text-amber-400" /> {job.employerId?.rating || "5.0"}
                     </span>
                   </div>
                 </div>
@@ -242,36 +298,36 @@ export default function JobDetailPage() {
 
           {/* Apply Form Panel (Right Side, 1 Column) */}
           <div className="space-y-6">
-            <div className="p-6 md:p-8 rounded-3xl bg-zinc-950 border border-white/10 space-y-6">
+            <div className="p-6 md:p-8 rounded-3xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 space-y-6 shadow-md">
               <div>
                 <h3 className="text-xl font-bold">Proposal Submission</h3>
-                <p className="text-xs text-zinc-400 mt-1">Submit your bid and proposal to start interview scheduling</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Submit your bid and proposal to start interview scheduling</p>
               </div>
 
               {appLoading ? (
                 <span className="text-xs text-zinc-500 block">Validating client application status...</span>
               ) : hasApplied ? (
-                <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-semibold flex items-center gap-2">
+                <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 text-xs font-semibold flex items-center gap-2">
                   <CheckCircle size={16} />
                   <span>You have already applied for this job listing.</span>
                 </div>
               ) : (
                 <>
                   {appError && (
-                    <div className="p-4 rounded-xl bg-red-950/30 border border-red-500/20 text-red-400 text-xs font-medium">
+                    <div className="p-4 rounded-xl bg-red-500/10 dark:bg-red-950/30 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-medium">
                       {appError}
                     </div>
                   )}
 
                   {appSuccessMessage && (
-                    <div className="p-4 rounded-xl bg-green-500/15 border border-green-500/20 text-green-400 text-xs font-medium">
+                    <div className="p-4 rounded-xl bg-green-500/10 dark:bg-green-500/15 border border-green-500/20 text-green-600 dark:text-green-400 text-xs font-medium">
                       {appSuccessMessage}
                     </div>
                   )}
 
                   <form onSubmit={handleApplySubmit} className="space-y-4">
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">
+                      <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
                         {job.workType === "Hourly" ? "Expected Hourly Rate Bid (PKR/hr)" : "Expected Budget Bid (PKR)"}
                       </label>
                       <input
@@ -279,7 +335,7 @@ export default function JobDetailPage() {
                         required
                         value={expectedSalary}
                         onChange={(e) => setExpectedSalary(Number(e.target.value))}
-                        className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none"
+                        className="w-full px-4 py-3 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm text-zinc-900 dark:text-zinc-200 outline-none"
                       />
                       <span className="text-[10px] text-zinc-500 block">
                         Client Budget: PKR {job.budget.toLocaleString()}{job.workType === "Hourly" ? " / hr" : ""}
@@ -287,33 +343,33 @@ export default function JobDetailPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Estimated Time to Complete</label>
+                      <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Estimated Time to Complete</label>
                       <input
                         type="text"
                         required
                         value={estimatedTime}
                         onChange={(e) => setEstimatedTime(e.target.value)}
                         placeholder="e.g. 2 weeks, 5 days, 1 month"
-                        className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none"
+                        className="w-full px-4 py-3 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm text-zinc-900 dark:text-zinc-200 outline-none"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Proposal Details</label>
+                      <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Proposal Details</label>
                       <textarea
                         required
                         value={proposalText}
                         onChange={(e) => setProposalText(e.target.value)}
                         placeholder="Explain your relevant skills and outline how you plan to complete this job..."
                         rows={6}
-                        className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-white/10 text-sm text-zinc-200 outline-none font-sans"
+                        className="w-full px-4 py-3 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm text-zinc-900 dark:text-zinc-200 outline-none font-sans"
                       />
                     </div>
 
                     <button
                       type="submit"
                       disabled={appSubmitLoading}
-                      className="w-full py-3 bg-white text-black font-bold text-sm rounded-xl hover:bg-zinc-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                      className="w-full py-3 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-white dark:text-black font-bold text-sm rounded-xl dark:hover:bg-zinc-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
                     >
                       <Send size={14} />
                       {appSubmitLoading ? "Submitting..." : "Send Job Proposal"}
