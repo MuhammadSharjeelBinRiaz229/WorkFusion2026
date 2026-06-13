@@ -328,10 +328,13 @@ export default function SeekerDashboard() {
           }
         });
 
-      // Load user reviews dynamically
+      // Load user reviews dynamically — reset first to clear stale state
       const userId = user?.id || user?._id;
+      setReviews([]);
       if (userId) {
         setReviewsLoading(true);
+        // Safety timeout: always stop loading after 10s to prevent infinite spinner
+        const reviewsTimeout = setTimeout(() => setReviewsLoading(false), 10000);
         apiRequest(`/reviews/user/${userId}`)
           .then((res) => res.json())
           .then((result) => {
@@ -340,7 +343,12 @@ export default function SeekerDashboard() {
             }
           })
           .catch((err) => console.error("Failed to load reviews:", err))
-          .finally(() => setReviewsLoading(false));
+          .finally(() => {
+            clearTimeout(reviewsTimeout);
+            setReviewsLoading(false);
+          });
+      } else {
+        setReviewsLoading(false);
       }
     }
   }, [activeTab, user, fetchRecommendations, fetchExploreJobs, fetchApplications, fetchChats, apiRequest]);
@@ -1721,12 +1729,23 @@ export default function SeekerDashboard() {
 
                     {/* Work History & Reviews */}
                     <div className="p-6 md:p-8 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/5 space-y-6">
-                      <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Work History & Reviews ({reviews.length})</h4>
+                      <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
+                        Work History &amp; Reviews {reviewsLoading ? "" : `(${reviews.length})`}
+                      </h4>
                       
                       {reviewsLoading ? (
-                        <span className="text-xs text-zinc-500">Querying platform history...</span>
+                        <div className="space-y-4">
+                          {[1, 2].map((i) => (
+                            <div key={i} className="space-y-2 animate-pulse">
+                              <div className="h-4 bg-zinc-200 dark:bg-zinc-800 rounded w-2/3" />
+                              <div className="h-3 bg-zinc-200 dark:bg-zinc-800 rounded w-1/4" />
+                              <div className="h-3 bg-zinc-200 dark:bg-zinc-800 rounded w-full" />
+                              <div className="h-3 bg-zinc-200 dark:bg-zinc-800 rounded w-4/5" />
+                            </div>
+                          ))}
+                        </div>
                       ) : reviews.length === 0 ? (
-                        <div className="p-8 text-center rounded-xl bg-zinc-50 dark:bg-zinc-900/20 border border-zinc-200 dark:border-white/5 text-zinc-500 text-sm">
+                        <div className="p-8 text-center rounded-xl bg-zinc-50 dark:bg-zinc-900/20 border border-dashed border-zinc-300 dark:border-white/10 text-zinc-500 text-sm">
                           No completed contracts or reviews recorded on the platform yet.
                         </div>
                       ) : (
