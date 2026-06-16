@@ -46,20 +46,14 @@
   --destructive-foreground: #fafafa;
   --border: #27272a;
   --input: #27272a;
-  --ring: #d4d4d8;
-}
-
-html {
-  background-color: var(--background);
-  transition: background-color 0.3s ease;
 }
 
 body {
-  background-color: transparent;
+  background-color: var(--background);
   color: var(--foreground);
   font-family: 'Inter', -apple-system, sans-serif;
   overflow-x: hidden;
-  transition: color 0.3s ease;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -165,4 +159,26 @@ h1, h2, h3, h4, h5, h6 {
 
 .dark ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+/* Custom layout utilities */
+.font-outfit {
+  font-family: 'Outfit', sans-serif;
+}
+
+/* Dot Grid Background */
+.dot-grid {
+  background-image: radial-gradient(rgba(24, 24, 27, 0.08) 1.5px, transparent 1.5px);
+  background-size: 28px 28px;
+}
+.dark .dot-grid {
+  background-image: radial-gradient(rgba(244, 244, 245, 0.08) 1.5px, transparent 1.5px);
+}
+
+/* Mouse Spotlight Glow */
+.mouse-spotlight {
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+}
+.dark .mouse-spotlight {
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.25) 0%, transparent 70%);
 }
