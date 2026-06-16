@@ -177,9 +177,30 @@ const PIPELINE_STEPS = [
   }
 ];
 
+// Animation Variants for Page Reveals
+const letterReveal = {
+  hidden: { y: "100%" },
+  visible: { y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] } }
+};
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 30 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] } }
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08
+    }
+  }
+};
+
 export default function LandingPage() {
-  // Stats
-  const [stats, setStats] = useState({ freelancers: 12800, jobs: 480, accuracy: 98.4, contracts: 6400 });
+  // Stats Counters
+  const [stats, setStats] = useState({ freelancers: 0, jobs: 0, accuracy: 0, contracts: 0 });
   
   // Interactive Feed Filters
   const [feedType, setFeedType] = useState("jobs"); // jobs, talents
@@ -188,6 +209,36 @@ export default function LandingPage() {
 
   // Process timeline active step
   const [activeStep, setActiveStep] = useState(0);
+
+  // Counter animation on mount
+  useEffect(() => {
+    const duration = 1200;
+    const steps = 60;
+    const intervalTime = duration / steps;
+    let stepCount = 0;
+
+    const interval = setInterval(() => {
+      stepCount++;
+      setStats({
+        freelancers: Math.floor((12800 / steps) * stepCount),
+        jobs: Math.floor((480 / steps) * stepCount),
+        accuracy: Math.min(98.4, parseFloat(((98.4 / steps) * stepCount).toFixed(1))),
+        contracts: Math.floor((6400 / steps) * stepCount),
+      });
+
+      if (stepCount >= steps) {
+        setStats({
+          freelancers: 12800,
+          jobs: 480,
+          accuracy: 98.4,
+          contracts: 6400,
+        });
+        clearInterval(interval);
+      }
+    }, intervalTime);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Filter logic
   const filteredJobs = FEATURED_JOBS.filter(job => {
@@ -211,102 +262,175 @@ export default function LandingPage() {
   });
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-[#09090b] text-zinc-900 dark:text-zinc-100 flex flex-col transition-colors duration-200">
+    <div className="min-h-screen bg-zinc-50 dark:bg-[#08080a] text-zinc-900 dark:text-zinc-100 flex flex-col transition-colors duration-300">
       
       {/* Navigation Header */}
-      <header className="w-full max-w-7xl mx-auto px-6 py-5 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800/80">
+      <motion.header 
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-7xl mx-auto px-6 py-5 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-900"
+      >
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-950 flex items-center justify-center font-bold text-lg tracking-tight">
             W
           </div>
           <span className="font-bold text-lg tracking-tight">
-            Work<span className="text-zinc-500 font-medium">Fusion</span>
+            Work<span className="text-blue-600 dark:text-blue-500 font-medium">Fusion</span>
           </span>
         </div>
 
         <div className="flex items-center gap-4">
           <ThemeToggle />
-          <Link href="/login" className="text-xs font-semibold text-zinc-650 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors flex items-center gap-1">
+          <Link href="/login" className="text-xs font-semibold text-zinc-650 dark:text-zinc-400 hover:text-zinc-955 dark:hover:text-white transition-colors flex items-center gap-1">
             <LogIn size={14} /> Login
           </Link>
           <Link href="/register" className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200 font-semibold text-xs rounded transition-colors flex items-center gap-1 border border-transparent dark:border-zinc-800">
             <UserPlus size={14} /> Register <ArrowRight size={12} />
           </Link>
         </div>
-      </header>
+      </motion.header>
 
       {/* Main Content */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-6 py-16 flex flex-col items-center">
         
         {/* Simple Top Badge */}
-        <div className="flex items-center gap-2 px-3 py-1 rounded bg-zinc-200/50 dark:bg-zinc-900 border border-zinc-300/60 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-semibold mb-6">
-          <Briefcase size={12} className="text-zinc-500" />
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="flex items-center gap-2 px-3 py-1 rounded bg-zinc-200/50 dark:bg-zinc-900 border border-zinc-300/50 dark:border-zinc-800 text-zinc-650 dark:text-zinc-400 text-xs font-semibold mb-8"
+        >
+          <Briefcase size={12} className="text-zinc-550 dark:text-zinc-450" />
           <span>Pakistan's Premier Hybrid Job Marketplace</span>
-        </div>
+        </motion.div>
 
-        {/* Hero Title */}
-        <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-zinc-900 dark:text-white max-w-3xl leading-tight mb-5 text-center">
-          One Platform For Every Professional Skill
-        </h1>
+        {/* Hero Title (Typography Mask Reveal) */}
+        <div className="max-w-4xl text-center mb-6 overflow-hidden">
+          <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold tracking-tight text-zinc-900 dark:text-white leading-[1.08]">
+            <span className="block overflow-hidden h-fit py-1">
+              <motion.span 
+                initial="hidden"
+                animate="visible"
+                variants={letterReveal}
+                className="block"
+              >
+                One Platform For
+              </motion.span>
+            </span>
+            <span className="block overflow-hidden h-fit py-1">
+              <motion.span 
+                initial="hidden"
+                animate="visible"
+                variants={letterReveal}
+                transition={{ delay: 0.15 }}
+                className="block text-blue-600 dark:text-blue-500"
+              >
+                Every Professional Skill
+              </motion.span>
+            </span>
+          </h1>
+        </div>
 
         {/* Hero Subtitle */}
-        <p className="text-sm sm:text-base text-zinc-500 dark:text-zinc-450 max-w-2xl mb-8 leading-relaxed text-center">
+        <motion.p 
+          initial="hidden"
+          animate="visible"
+          variants={fadeUp}
+          transition={{ delay: 0.3 }}
+          className="text-sm sm:text-base text-zinc-500 dark:text-zinc-450 max-w-2xl mb-8 leading-relaxed text-center"
+        >
           Unifying online freelancing and localized physical services in one integrated workspace. Find talents and gigs matched by our verified skill and location ranking engine.
-        </p>
+        </motion.p>
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-center gap-3 mb-16 w-full sm:w-auto">
-          <Link href="/register" className="w-full sm:w-auto px-6 py-3 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-950 font-semibold text-xs rounded transition-colors flex items-center justify-center gap-1.5 border border-transparent dark:border-zinc-800">
+        <motion.div 
+          initial="hidden"
+          animate="visible"
+          variants={fadeUp}
+          transition={{ delay: 0.4 }}
+          className="flex flex-col sm:flex-row items-center gap-3 mb-20 w-full sm:w-auto"
+        >
+          <Link href="/register" className="w-full sm:w-auto px-6 py-3.5 bg-zinc-900 hover:bg-zinc-850 text-white dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-950 font-semibold text-xs rounded transition-colors flex items-center justify-center gap-1.5 border border-transparent dark:border-zinc-800">
             Get Started As Candidate <ArrowRight size={14} />
           </Link>
-          <Link href="/register" className="w-full sm:w-auto px-6 py-3 bg-white hover:bg-zinc-50 text-zinc-900 dark:bg-zinc-900 dark:hover:bg-zinc-850 dark:text-white font-semibold text-xs rounded border border-zinc-200 dark:border-zinc-800 transition-colors flex items-center justify-center gap-1.5">
+          <Link href="/register" className="w-full sm:w-auto px-6 py-3.5 bg-white hover:bg-zinc-50 text-zinc-900 dark:bg-zinc-900 dark:hover:bg-zinc-850/80 dark:text-white font-semibold text-xs rounded border border-zinc-200 dark:border-zinc-800 transition-colors flex items-center justify-center gap-1.5">
             Hire Skills
           </Link>
-        </div>
+        </motion.div>
 
         {/* Stats Grid */}
-        <div className="w-full max-w-4xl grid grid-cols-2 md:grid-cols-4 gap-6 p-6 rounded-xl bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 shadow-sm mb-16">
+        <motion.div 
+          initial="hidden"
+          animate="visible"
+          variants={fadeUp}
+          transition={{ delay: 0.5 }}
+          className="w-full max-w-4xl grid grid-cols-2 md:grid-cols-4 gap-6 p-6 rounded-xl bg-white dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-900 shadow-sm mb-20"
+        >
           <div className="flex flex-col items-center">
-            <span className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white">{stats.freelancers.toLocaleString()}+</span>
-            <span className="text-[10px] font-semibold text-zinc-550 mt-1 uppercase tracking-wider">Verified Talents</span>
+            <span className="text-xl sm:text-3xl font-bold text-zinc-900 dark:text-white">{stats.freelancers.toLocaleString()}+</span>
+            <span className="text-[10px] font-semibold text-zinc-550 dark:text-zinc-450 mt-1 uppercase tracking-wider">Verified Talents</span>
           </div>
           <div className="flex flex-col items-center">
-            <span className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white">{stats.jobs.toLocaleString()}+</span>
-            <span className="text-[10px] font-semibold text-zinc-550 mt-1 uppercase tracking-wider">Active Gigs</span>
+            <span className="text-xl sm:text-3xl font-bold text-zinc-900 dark:text-white">{stats.jobs.toLocaleString()}+</span>
+            <span className="text-[10px] font-semibold text-zinc-550 dark:text-zinc-450 mt-1 uppercase tracking-wider">Active Gigs</span>
           </div>
           <div className="flex flex-col items-center">
-            <span className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white">{stats.accuracy}%</span>
-            <span className="text-[10px] font-semibold text-zinc-550 mt-1 uppercase tracking-wider">Match Accuracy</span>
+            <span className="text-xl sm:text-3xl font-bold text-zinc-900 dark:text-white">{stats.accuracy}%</span>
+            <span className="text-[10px] font-semibold text-zinc-550 dark:text-zinc-450 mt-1 uppercase tracking-wider">Match Accuracy</span>
           </div>
           <div className="flex flex-col items-center">
-            <span className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white">{stats.contracts.toLocaleString()}+</span>
-            <span className="text-[10px] font-semibold text-zinc-550 mt-1 uppercase tracking-wider">Completed Gigs</span>
+            <span className="text-xl sm:text-3xl font-bold text-zinc-900 dark:text-white">{stats.contracts.toLocaleString()}+</span>
+            <span className="text-[10px] font-semibold text-zinc-550 dark:text-zinc-450 mt-1 uppercase tracking-wider">Completed Gigs</span>
           </div>
-        </div>
+        </motion.div>
+
+        {/* Line Drawing Divider */}
+        <motion.div
+          initial={{ scaleX: 0 }}
+          whileInView={{ scaleX: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="w-full h-[1px] bg-zinc-200 dark:bg-zinc-900 origin-left mb-20"
+        />
 
         {/* Marketplace Explorer Feed */}
         <section className="w-full flex flex-col gap-6 mb-24 text-left">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200 dark:border-zinc-900 pb-4">
             <div>
               <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Explore the Marketplace</h2>
               <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-0.5">Active physical and digital job listings updated in real time</p>
             </div>
 
-            <div className="flex bg-zinc-100 dark:bg-zinc-900 p-0.5 rounded border border-zinc-250 dark:border-zinc-800 self-start">
+            <div className="flex bg-zinc-100 dark:bg-zinc-900 p-0.5 rounded border border-zinc-250 dark:border-zinc-800 self-start relative">
               <button
                 onClick={() => setFeedType("jobs")}
-                className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors ${
-                  feedType === "jobs" ? "bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-white" : "text-zinc-550 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-250"
+                className={`relative px-4 py-1.5 text-xs font-semibold rounded transition-colors z-10 ${
+                  feedType === "jobs" ? "text-zinc-950 dark:text-white" : "text-zinc-550 hover:text-zinc-850 dark:text-zinc-400 dark:hover:text-zinc-250"
                 }`}
               >
+                {feedType === "jobs" && (
+                  <motion.span
+                    layoutId="activeFeedTab"
+                    className="absolute inset-0 bg-white dark:bg-zinc-800 rounded shadow-sm -z-10"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
                 Featured Gigs
               </button>
               <button
                 onClick={() => setFeedType("talents")}
-                className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors ${
-                  feedType === "talents" ? "bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-white" : "text-zinc-550 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-250"
+                className={`relative px-4 py-1.5 text-xs font-semibold rounded transition-colors z-10 ${
+                  feedType === "talents" ? "text-zinc-950 dark:text-white" : "text-zinc-555 hover:text-zinc-855 dark:text-zinc-400 dark:hover:text-zinc-250"
                 }`}
               >
+                {feedType === "talents" && (
+                  <motion.span
+                    layoutId="activeFeedTab"
+                    className="absolute inset-0 bg-white dark:bg-zinc-800 rounded shadow-sm -z-10"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
                 Top Rated Experts
               </button>
             </div>
@@ -321,21 +445,28 @@ export default function LandingPage() {
                 placeholder={feedType === "jobs" ? "Search jobs by title, skills, location (e.g. React, Rawalpindi)" : "Search talents by name, skills, role (e.g. Electrician, Figma)"}
                 value={searchVal}
                 onChange={(e) => setSearchVal(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-700 text-zinc-800 dark:text-zinc-100"
+                className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-700 text-zinc-800 dark:text-zinc-100 transition-shadow"
               />
             </div>
             
-            <div className="flex gap-2 min-w-[320px]">
+            <div className="flex bg-zinc-100 dark:bg-zinc-900 p-0.5 rounded border border-zinc-250 dark:border-zinc-800 min-w-[320px] relative">
               {["All", "Digital", "Physical"].map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setCategoryFilter(cat)}
-                  className={`flex-1 py-2.5 text-xs font-semibold rounded-lg border transition-colors ${
+                  className={`flex-1 py-2 text-xs font-semibold rounded transition-colors relative z-10 ${
                     categoryFilter === cat 
-                      ? "bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-950 dark:border-white" 
-                      : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-650 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-850"
+                      ? "text-zinc-950 dark:text-white" 
+                      : "text-zinc-550 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-250"
                   }`}
                 >
+                  {categoryFilter === cat && (
+                    <motion.span
+                      layoutId="activeCategoryTab"
+                      className="absolute inset-0 bg-white dark:bg-zinc-850 rounded shadow-sm -z-10"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    />
+                  )}
                   {cat === "All" ? "All Sectors" : cat === "Digital" ? "Digital" : "Physical"}
                 </button>
               ))}
@@ -343,7 +474,13 @@ export default function LandingPage() {
           </div>
 
           {/* Grid Layout of results */}
-          <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+          <motion.div 
+            variants={staggerContainer}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full"
+          >
             <AnimatePresence mode="popLayout">
               {feedType === "jobs" ? (
                 filteredJobs.length === 0 ? (
@@ -353,20 +490,17 @@ export default function LandingPage() {
                     <motion.div
                       key={job.id}
                       layout
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 flex flex-col justify-between h-56 transition-colors hover:border-zinc-350 dark:hover:border-zinc-700 shadow-sm"
+                      variants={fadeUp}
+                      whileHover={{ y: -5, borderColor: "var(--accent-color, #3b82f6)" }}
+                      className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 flex flex-col justify-between h-56 transition-all shadow-sm cursor-pointer hover:shadow-md"
                     >
                       <div>
                         <div className="flex items-center justify-between mb-3">
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider ${
-                            job.category === "Digital" ? "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-350" : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-350"
-                          }`}>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-350 border border-zinc-200/50 dark:border-zinc-700/50">
                             {job.category === "Digital" ? "Digital" : "Physical"}
                           </span>
-                          <span className="text-xs text-zinc-500 flex items-center gap-1">
-                            <MapPin size={12} /> {job.location}
+                          <span className="text-xs text-zinc-550 dark:text-zinc-450 flex items-center gap-1">
+                            <MapPin size={12} className="text-zinc-400" /> {job.location}
                           </span>
                         </div>
                         <h4 className="font-bold text-base text-zinc-900 dark:text-white line-clamp-1">{job.title}</h4>
@@ -375,14 +509,14 @@ export default function LandingPage() {
                         {/* Tags */}
                         <div className="flex flex-wrap gap-1 mt-3">
                           {job.skills.map((s) => (
-                            <span key={s} className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-650 dark:text-zinc-400 border border-zinc-200/40 dark:border-zinc-700/30">
+                            <span key={s} className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800/60 text-zinc-650 dark:text-zinc-400 border border-zinc-200/40 dark:border-zinc-700/30">
                               {s}
                             </span>
                           ))}
                         </div>
                       </div>
 
-                      <div className="flex justify-between items-center pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                      <div className="flex justify-between items-center pt-3 border-t border-zinc-150 dark:border-zinc-800">
                         <span className="text-xs font-bold text-zinc-800 dark:text-zinc-250">{job.budget}</span>
                         <div className="flex items-center gap-1 text-xs text-amber-500 font-semibold">
                           <Star size={12} fill="currentColor" /> {job.rating}
@@ -399,20 +533,17 @@ export default function LandingPage() {
                     <motion.div
                       key={talent.id}
                       layout
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 flex flex-col justify-between h-56 transition-colors hover:border-zinc-350 dark:hover:border-zinc-700 shadow-sm"
+                      variants={fadeUp}
+                      whileHover={{ y: -5, borderColor: "var(--accent-color, #3b82f6)" }}
+                      className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 flex flex-col justify-between h-56 transition-all shadow-sm cursor-pointer hover:shadow-md"
                     >
                       <div>
                         <div className="flex items-center justify-between mb-3">
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider ${
-                            talent.category === "Digital" ? "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-350" : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-350"
-                          }`}>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-350 border border-zinc-200/50 dark:border-zinc-700/50">
                             {talent.category === "Digital" ? "Digital" : "Physical"}
                           </span>
-                          <span className="text-xs text-zinc-500 flex items-center gap-1">
-                            <MapPin size={12} /> {talent.location}
+                          <span className="text-xs text-zinc-550 dark:text-zinc-450 flex items-center gap-1">
+                            <MapPin size={12} className="text-zinc-400" /> {talent.location}
                           </span>
                         </div>
                         
@@ -429,14 +560,14 @@ export default function LandingPage() {
                         {/* Tags */}
                         <div className="flex flex-wrap gap-1 mt-3">
                           {talent.skills.map((s) => (
-                            <span key={s} className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-650 dark:text-zinc-400 border border-zinc-200/40 dark:border-zinc-700/30">
+                            <span key={s} className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800/60 text-zinc-650 dark:text-zinc-400 border border-zinc-200/40 dark:border-zinc-700/30">
                               {s}
                             </span>
                           ))}
                         </div>
                       </div>
 
-                      <div className="flex justify-between items-center pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                      <div className="flex justify-between items-center pt-3 border-t border-zinc-150 dark:border-zinc-800">
                         <span className="text-xs text-zinc-500">Completed: <b className="text-zinc-800 dark:text-zinc-250 font-bold">{talent.completed} jobs</b></span>
                         <div className="flex items-center gap-1 text-xs text-amber-500 font-semibold">
                           <Star size={12} fill="currentColor" /> {talent.rating}
@@ -451,7 +582,7 @@ export default function LandingPage() {
         </section>
 
         {/* System Architecture Workflow Demo */}
-        <section className="w-full flex flex-col gap-6 mb-24 text-left border-t border-zinc-200 dark:border-zinc-800 pt-16">
+        <section className="w-full flex flex-col gap-6 mb-24 text-left border-t border-zinc-200 dark:border-zinc-900 pt-16">
           <div>
             <h2 className="text-xl font-bold text-zinc-900 dark:text-white">System Architecture & Pipeline</h2>
             <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-0.5">Click through the pipeline stages to see how the system operates</p>
@@ -467,13 +598,13 @@ export default function LandingPage() {
                   <button
                     key={idx}
                     onClick={() => setActiveStep(idx)}
-                    className={`p-4 text-left rounded-xl border transition-colors ${
+                    className={`p-4 text-left rounded-xl border transition-all ${
                       isActive 
-                        ? "bg-zinc-100 dark:bg-zinc-900 border-zinc-400 dark:border-zinc-700 shadow-sm" 
-                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800/80 hover:bg-zinc-50 dark:hover:bg-zinc-850"
+                        ? "bg-zinc-150 dark:bg-zinc-900 border-zinc-400 dark:border-zinc-700 shadow-sm" 
+                        : "bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-850 hover:bg-zinc-100 dark:hover:bg-zinc-900"
                     }`}
                   >
-                    <h4 className={`text-xs font-bold ${isActive ? "text-zinc-900 dark:text-white" : "text-zinc-550 dark:text-zinc-400"}`}>{step.title}</h4>
+                    <h4 className={`text-xs font-bold ${isActive ? "text-zinc-900 dark:text-white" : "text-zinc-550 dark:text-zinc-450"}`}>{step.title}</h4>
                     <p className="text-xs text-zinc-800 dark:text-zinc-200 font-semibold mt-0.5 leading-tight">{step.subtitle}</p>
                     <p className="text-[10px] text-zinc-500 mt-1 leading-normal">{step.desc}</p>
                   </button>
@@ -485,7 +616,7 @@ export default function LandingPage() {
             <div className="lg:col-span-7 w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-xl min-h-[340px] flex flex-col justify-between">
               <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
                 <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Component Preview</span>
-                <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold">{PIPELINE_STEPS[activeStep].preview.badge}</span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-350 font-semibold">{PIPELINE_STEPS[activeStep].preview.badge}</span>
               </div>
 
               {/* Dynamic Content Preview Box */}
@@ -493,14 +624,14 @@ export default function LandingPage() {
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={activeStep}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15 }}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
                     className="w-full max-w-md bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800/80 p-5 rounded-lg flex flex-col gap-3"
                   >
                     <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-2">
-                      <Cpu size={14} className="text-zinc-500" />
+                      <Cpu size={14} className="text-zinc-400" />
                       <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">{PIPELINE_STEPS[activeStep].preview.title}</span>
                     </div>
 
@@ -519,14 +650,14 @@ export default function LandingPage() {
                     {/* RENDER MATCH DETAILS MOCKUP */}
                     {PIPELINE_STEPS[activeStep].preview.type === "match" && (
                       <div className="space-y-2.5">
-                        <div className="flex items-center gap-1.5 p-2 rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 text-[11px] font-semibold">
-                          <CheckCircle2 size={13} className="text-zinc-500 shrink-0" />
+                        <div className="flex items-center gap-1.5 p-2 rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-350 border border-zinc-200 dark:border-zinc-800 text-[11px] font-semibold">
+                          <CheckCircle2 size={13} className="text-blue-500 dark:text-blue-400 shrink-0" />
                           <span>Matched with commute radius & skills profile.</span>
                         </div>
                         <div className="space-y-1.5">
                           {PIPELINE_STEPS[activeStep].preview.details.map((item, i) => (
                             <div key={i} className="flex items-center gap-2 text-xs">
-                              <CheckCircle2 size={12} className="text-zinc-500 shrink-0" />
+                              <CheckCircle2 size={12} className="text-blue-500 dark:text-blue-400 shrink-0" />
                               <span className="text-zinc-650 dark:text-zinc-350">{item.text}</span>
                             </div>
                           ))}
@@ -560,7 +691,7 @@ export default function LandingPage() {
                         {PIPELINE_STEPS[activeStep].preview.details.map((field) => (
                           <div key={field.label} className="text-xs">
                             <span className="text-zinc-400 block text-[9px] uppercase tracking-wider">{field.label}</span>
-                            <span className="text-zinc-800 dark:text-zinc-200 font-medium">{field.value}</span>
+                            <span className="text-zinc-850 dark:text-zinc-200 font-semibold">{field.value}</span>
                           </div>
                         ))}
                       </div>
@@ -577,47 +708,47 @@ export default function LandingPage() {
         </section>
 
         {/* Feature Highlights Grid */}
-        <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mt-16 border-t border-zinc-200 dark:border-zinc-800 pt-12">
+        <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mt-16 border-t border-zinc-200 dark:border-zinc-900 pt-12">
           <div className="flex flex-col items-start p-4">
-            <div className="w-8 h-8 rounded bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-zinc-800 dark:text-zinc-200 mb-3 border border-zinc-200 dark:border-zinc-800">
+            <div className="w-8 h-8 rounded bg-zinc-100 dark:bg-zinc-900/60 flex items-center justify-center text-zinc-800 dark:text-zinc-250 mb-3 border border-zinc-200 dark:border-zinc-800">
               <Cpu size={16} />
             </div>
             <h4 className="font-bold text-sm text-zinc-900 dark:text-white mb-1">Explainable Matching</h4>
-            <p className="text-xs text-zinc-500 leading-normal">Clear breakdown of skills, availability, and reviews matching.</p>
+            <p className="text-xs text-zinc-550 dark:text-zinc-400 leading-normal">Clear breakdown of skills, availability, and reviews matching.</p>
           </div>
 
           <div className="flex flex-col items-start p-4">
-            <div className="w-8 h-8 rounded bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-zinc-800 dark:text-zinc-200 mb-3 border border-zinc-200 dark:border-zinc-800">
+            <div className="w-8 h-8 rounded bg-zinc-100 dark:bg-zinc-900/60 flex items-center justify-center text-zinc-800 dark:text-zinc-250 mb-3 border border-zinc-200 dark:border-zinc-800">
               <ShieldCheck size={16} />
             </div>
             <h4 className="font-bold text-sm text-zinc-900 dark:text-white mb-1">Secure Interlocks</h4>
-            <p className="text-xs text-zinc-500 leading-normal">Messaging is only enabled once candidates reach the Interview stage.</p>
+            <p className="text-xs text-zinc-550 dark:text-zinc-400 leading-normal">Messaging is only enabled once candidates reach the Interview stage.</p>
           </div>
 
           <div className="flex flex-col items-start p-4">
-            <div className="w-8 h-8 rounded bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-zinc-800 dark:text-zinc-200 mb-3 border border-zinc-200 dark:border-zinc-800">
+            <div className="w-8 h-8 rounded bg-zinc-100 dark:bg-zinc-900/60 flex items-center justify-center text-zinc-800 dark:text-zinc-250 mb-3 border border-zinc-200 dark:border-zinc-800">
               <MapPin size={16} />
             </div>
-            <h4 className="font-bold text-sm text-zinc-900 dark:text-white mb-1">Commute Optimization</h4>
-            <p className="text-xs text-zinc-500 leading-normal">Geographic matching tailored for commutes in Twin-Cities and beyond.</p>
+            <h4 className="font-bold text-sm text-zinc-900 dark:text-white mb-1">Twin-City Optimization</h4>
+            <p className="text-xs text-zinc-550 dark:text-zinc-400 leading-normal">Geographic matching tailored for commutes in Twin-Cities and beyond.</p>
           </div>
 
           <div className="flex flex-col items-start p-4">
-            <div className="w-8 h-8 rounded bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-zinc-800 dark:text-zinc-200 mb-3 border border-zinc-200 dark:border-zinc-800">
+            <div className="w-8 h-8 rounded bg-zinc-100 dark:bg-zinc-900/60 flex items-center justify-center text-zinc-800 dark:text-zinc-250 mb-3 border border-zinc-200 dark:border-zinc-800">
               <Briefcase size={16} />
             </div>
             <h4 className="font-bold text-sm text-zinc-900 dark:text-white mb-1">Verified Outcomes</h4>
-            <p className="text-xs text-zinc-500 leading-normal">Reviews and contract releases are strictly gated by job resolution.</p>
+            <p className="text-xs text-zinc-550 dark:text-zinc-400 leading-normal">Reviews and contract releases are strictly gated by job resolution.</p>
           </div>
         </div>
 
       </main>
 
       {/* Footer */}
-      <footer className="w-full border-t border-zinc-200 dark:border-zinc-800 py-8 text-center text-zinc-500 text-xs mt-auto">
+      <footer className="w-full border-t border-zinc-200 dark:border-zinc-900 py-8 text-center text-zinc-500 text-xs mt-auto">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-zinc-900 dark:bg-zinc-150 text-white dark:text-zinc-950 flex items-center justify-center font-bold text-xs">
+            <div className="w-6 h-6 rounded bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-950 flex items-center justify-center font-bold text-xs">
               W
             </div>
             <span className="font-bold text-zinc-800 dark:text-zinc-200">
@@ -625,7 +756,7 @@ export default function LandingPage() {
             </span>
           </div>
           <span>&copy; 2026 WorkFusion. Engineered for Excellence.</span>
-          <div className="flex gap-4 text-zinc-500 font-medium">
+          <div className="flex gap-4 text-zinc-550 font-medium">
             <Link href="/login" className="hover:text-zinc-900 dark:hover:text-white transition-colors">Login</Link>
             <Link href="/register" className="hover:text-zinc-900 dark:hover:text-white transition-colors">Register</Link>
           </div>
