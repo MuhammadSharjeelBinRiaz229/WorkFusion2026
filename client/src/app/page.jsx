@@ -6,7 +6,7 @@ import {
   Briefcase, MapPin, ShieldCheck, ArrowRight, UserPlus, LogIn, 
   Star, Search, Cpu, CheckCircle2
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
 import ThemeToggle from "../components/ThemeToggle";
 
 // Live Mock Data
@@ -200,6 +200,26 @@ export default function LandingPage() {
   // Process timeline active step
   const [activeStep, setActiveStep] = useState(0);
 
+  // Mouse Move Values (Performance-optimized Framer Motion Springs)
+  const [mouseMoved, setMouseMoved] = useState(false);
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+
+  const springX = useSpring(mouseX, { stiffness: 60, damping: 20 });
+  const springY = useSpring(mouseY, { stiffness: 60, damping: 20 });
+
+  // Handle Mouse tracking
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!mouseMoved) setMouseMoved(true);
+      mouseX.set(e.clientX - 150); // half of width (300px)
+      mouseY.set(e.clientY - 150);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, [mouseMoved, mouseX, mouseY]);
+
   // Counter animation on mount
   useEffect(() => {
     const duration = 1200;
@@ -252,14 +272,36 @@ export default function LandingPage() {
   });
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-[#08080a] text-zinc-900 dark:text-zinc-100 flex flex-col transition-colors duration-300">
+    <div className="min-h-screen bg-zinc-50 dark:bg-[#08080a] text-zinc-900 dark:text-zinc-100 flex flex-col relative overflow-hidden transition-colors duration-300">
       
+      {/* Subtle Dot Grid Background */}
+      <div 
+        className="absolute inset-0 pointer-events-none -z-20 opacity-[0.04] dark:opacity-[0.06] text-zinc-900 dark:text-zinc-100"
+        style={{
+          backgroundImage: "radial-gradient(currentColor 1.5px, transparent 1.5px)",
+          backgroundSize: "28px 28px",
+        }}
+      />
+
+      {/* Smooth Mouse Spotlight Glow */}
+      {mouseMoved && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          style={{
+            x: springX,
+            y: springY,
+          }}
+          className="hidden md:block fixed w-[300px] h-[300px] rounded-full bg-blue-500/10 dark:bg-blue-500/10 blur-[80px] pointer-events-none -z-10 mix-blend-multiply dark:mix-blend-screen"
+        />
+      )}
+
       {/* Navigation Header */}
       <motion.header 
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-7xl mx-auto px-6 py-5 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-900"
+        className="w-full max-w-7xl mx-auto px-6 py-5 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-900 relative z-10"
       >
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-955 flex items-center justify-center font-bold text-lg tracking-tight">
@@ -275,14 +317,14 @@ export default function LandingPage() {
           <Link href="/login" className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors flex items-center gap-1">
             <LogIn size={14} /> Login
           </Link>
-          <Link href="/register" className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200 font-semibold text-xs rounded transition-colors flex items-center gap-1 border border-transparent dark:border-zinc-800">
+          <Link href="/register" className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-955 dark:hover:bg-zinc-200 font-semibold text-xs rounded transition-colors flex items-center gap-1 border border-transparent dark:border-zinc-800">
             <UserPlus size={14} /> Register <ArrowRight size={12} />
           </Link>
         </div>
       </motion.header>
 
       {/* Main Content */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-6 py-16 flex flex-col items-center">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-6 py-16 flex flex-col items-center relative z-10">
         
         {/* Simple Top Badge */}
         <motion.div 
@@ -291,7 +333,7 @@ export default function LandingPage() {
           transition={{ duration: 0.6, delay: 0.1 }}
           className="flex items-center gap-2 px-3 py-1 rounded bg-zinc-200/50 dark:bg-zinc-900 border border-zinc-300/50 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-semibold mb-8"
         >
-          <Briefcase size={12} className="text-zinc-500 dark:text-zinc-400" />
+          <Briefcase size={12} className="text-zinc-550 dark:text-zinc-450" />
           <span>Pakistan's Premier Hybrid Job Marketplace</span>
         </motion.div>
 
@@ -328,7 +370,7 @@ export default function LandingPage() {
           animate="visible"
           variants={fadeUp}
           transition={{ delay: 0.3 }}
-          className="text-sm sm:text-base text-zinc-500 dark:text-zinc-400 max-w-2xl mb-8 leading-relaxed text-center"
+          className="text-sm sm:text-base text-zinc-550 dark:text-zinc-400 max-w-2xl mb-8 leading-relaxed text-center"
         >
           Unifying online freelancing and localized physical services in one integrated workspace. Find talents and gigs matched by our verified skill and location ranking engine.
         </motion.p>
@@ -341,7 +383,7 @@ export default function LandingPage() {
           transition={{ delay: 0.4 }}
           className="flex flex-col sm:flex-row items-center gap-3 mb-20 w-full sm:w-auto"
         >
-          <Link href="/register" className="w-full sm:w-auto px-6 py-3.5 bg-zinc-900 hover:bg-zinc-855 text-white dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-950 font-semibold text-xs rounded transition-colors flex items-center justify-center gap-1.5 border border-transparent dark:border-zinc-800">
+          <Link href="/register" className="w-full sm:w-auto px-6 py-3.5 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-950 font-semibold text-xs rounded transition-colors flex items-center justify-center gap-1.5 border border-transparent dark:border-zinc-800">
             Get Started As Candidate <ArrowRight size={14} />
           </Link>
           <Link href="/register" className="w-full sm:w-auto px-6 py-3.5 bg-white hover:bg-zinc-50 text-zinc-900 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-white font-semibold text-xs rounded border border-zinc-200 dark:border-zinc-800 transition-colors flex items-center justify-center gap-1.5">
@@ -367,7 +409,7 @@ export default function LandingPage() {
           </div>
           <div className="flex flex-col items-center">
             <span className="text-xl sm:text-3xl font-bold text-zinc-900 dark:text-white">{stats.accuracy}%</span>
-            <span className="text-[10px] font-semibold text-zinc-550 dark:text-zinc-400 mt-1 uppercase tracking-wider">Match Accuracy</span>
+            <span className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 mt-1 uppercase tracking-wider">Match Accuracy</span>
           </div>
           <div className="flex flex-col items-center">
             <span className="text-xl sm:text-3xl font-bold text-zinc-900 dark:text-white">{stats.contracts.toLocaleString()}+</span>
@@ -492,7 +534,7 @@ export default function LandingPage() {
                     >
                       <div>
                         <div className="flex items-center justify-between mb-3">
-                          <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200/50 dark:border-zinc-700/50">
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider bg-zinc-100 dark:bg-zinc-800 text-zinc-750 dark:text-zinc-300 border border-zinc-200/50 dark:border-zinc-700/50">
                             {job.category === "Digital" ? "Digital" : "Physical"}
                           </span>
                           <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
@@ -547,7 +589,7 @@ export default function LandingPage() {
                     >
                       <div>
                         <div className="flex items-center justify-between mb-3">
-                          <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200/50 dark:border-zinc-700/50">
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider bg-zinc-100 dark:bg-zinc-800 text-zinc-750 dark:text-zinc-300 border border-zinc-200/50 dark:border-zinc-700/50">
                             {talent.category === "Digital" ? "Digital" : "Physical"}
                           </span>
                           <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
@@ -608,7 +650,7 @@ export default function LandingPage() {
                     onClick={() => setActiveStep(idx)}
                     className={`p-4 text-left rounded-xl border transition-all ${
                       isActive 
-                        ? "bg-zinc-100 dark:bg-zinc-900 border-zinc-400 dark:border-zinc-750 shadow-sm" 
+                        ? "bg-zinc-100 dark:bg-zinc-900 border-zinc-400 dark:border-zinc-700 shadow-sm" 
                         : "bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900"
                     }`}
                   >
@@ -624,7 +666,7 @@ export default function LandingPage() {
             <div className="lg:col-span-7 w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-xl min-h-[340px] flex flex-col justify-between">
               <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
                 <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Component Preview</span>
-                <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold">{PIPELINE_STEPS[activeStep].preview.badge}</span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-350 font-semibold">{PIPELINE_STEPS[activeStep].preview.badge}</span>
               </div>
 
               {/* Dynamic Content Preview Box */}
@@ -636,7 +678,7 @@ export default function LandingPage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
-                    className="w-full max-w-md bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800/80 p-5 rounded-lg flex flex-col gap-3"
+                    className="w-full max-w-md bg-zinc-50 dark:bg-zinc-955 border border-zinc-200 dark:border-zinc-800/80 p-5 rounded-lg flex flex-col gap-3"
                   >
                     <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-2">
                       <Cpu size={14} className="text-zinc-400" />
@@ -666,7 +708,7 @@ export default function LandingPage() {
                           {PIPELINE_STEPS[activeStep].preview.details.map((item, i) => (
                             <div key={i} className="flex items-center gap-2 text-xs">
                               <CheckCircle2 size={12} className="text-blue-500 dark:text-blue-400 shrink-0" />
-                              <span className="text-zinc-600 dark:text-zinc-405">{item.text}</span>
+                              <span className="text-zinc-600 dark:text-zinc-400">{item.text}</span>
                             </div>
                           ))}
                         </div>
@@ -681,7 +723,7 @@ export default function LandingPage() {
                             {msg.sender !== "System" && <span className="text-[9px] text-zinc-400 font-bold uppercase">{msg.sender}</span>}
                             <span className={`px-2.5 py-1.5 rounded-lg max-w-[85%] font-normal leading-tight ${
                               msg.sender === "System" 
-                                ? "bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 text-[10px] font-semibold text-center border border-zinc-200 dark:border-zinc-800 w-full" 
+                                ? "bg-zinc-100 dark:bg-zinc-900 text-zinc-655 dark:text-zinc-400 text-[10px] font-semibold text-center border border-zinc-200 dark:border-zinc-800 w-full" 
                                 : msg.sender === "Employer" 
                                 ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950" 
                                 : "bg-zinc-200 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200"
@@ -699,7 +741,7 @@ export default function LandingPage() {
                         {PIPELINE_STEPS[activeStep].preview.details.map((field) => (
                           <div key={field.label} className="text-xs">
                             <span className="text-zinc-400 block text-[9px] uppercase tracking-wider">{field.label}</span>
-                            <span className="text-zinc-855 dark:text-zinc-200 font-medium">{field.value}</span>
+                            <span className="text-zinc-800 dark:text-zinc-200 font-medium">{field.value}</span>
                           </div>
                         ))}
                       </div>
@@ -708,7 +750,7 @@ export default function LandingPage() {
                 </AnimatePresence>
               </div>
 
-              <div className="text-[10px] text-zinc-400 dark:text-zinc-500 text-center border-t border-zinc-150 dark:border-zinc-800 pt-3">
+              <div className="text-[10px] text-zinc-400 dark:text-zinc-500 text-center border-t border-zinc-200 dark:border-zinc-800 pt-3">
                 Interactive walkthrough demonstrating system modules (Jobs &bull; Matching &bull; Chats &bull; Reviews)
               </div>
             </div>
@@ -730,7 +772,7 @@ export default function LandingPage() {
               <ShieldCheck size={16} />
             </div>
             <h4 className="font-bold text-sm text-zinc-900 dark:text-white mb-1">Secure Interlocks</h4>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-normal">Messaging is only enabled once candidates reach the Interview stage.</p>
+            <p className="text-xs text-zinc-550 dark:text-zinc-400 leading-normal">Messaging is only enabled once candidates reach the Interview stage.</p>
           </div>
 
           <div className="flex flex-col items-start p-4">
@@ -738,7 +780,7 @@ export default function LandingPage() {
               <MapPin size={16} />
             </div>
             <h4 className="font-bold text-sm text-zinc-900 dark:text-white mb-1">Twin-City Optimization</h4>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-normal">Geographic matching tailored for commutes in Twin-Cities and beyond.</p>
+            <p className="text-xs text-zinc-550 dark:text-zinc-400 leading-normal">Geographic matching tailored for commutes in Twin-Cities and beyond.</p>
           </div>
 
           <div className="flex flex-col items-start p-4">
@@ -746,14 +788,14 @@ export default function LandingPage() {
               <Briefcase size={16} />
             </div>
             <h4 className="font-bold text-sm text-zinc-900 dark:text-white mb-1">Verified Outcomes</h4>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-normal">Reviews and contract releases are strictly gated by job resolution.</p>
+            <p className="text-xs text-zinc-550 dark:text-zinc-400 leading-normal">Reviews and contract releases are strictly gated by job resolution.</p>
           </div>
         </div>
 
       </main>
 
       {/* Footer */}
-      <footer className="w-full border-t border-zinc-200 dark:border-zinc-900 py-8 text-center text-zinc-500 text-xs mt-auto">
+      <footer className="w-full border-t border-zinc-200 dark:border-zinc-900 py-8 text-center text-zinc-500 text-xs mt-auto relative z-10">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-950 flex items-center justify-center font-bold text-xs">
