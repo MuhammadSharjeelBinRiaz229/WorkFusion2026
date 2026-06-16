@@ -46,6 +46,18 @@ const seedDatabase = async () => {
     await mongoose.connect(MONGODB_URI);
     console.log("Successfully connected. Clearing collections...");
 
+    // Drop indexes first to purge any stale index definitions from prior schema versions
+    await User.collection.dropIndexes().catch(() => {});
+    await Job.collection.dropIndexes().catch(() => {});
+    await Application.collection.dropIndexes().catch(() => {});
+    await Chat.collection.dropIndexes().catch(() => {});
+    await Message.collection.dropIndexes().catch(() => {});
+    await Review.collection.dropIndexes().catch(() => {});
+    await Notification.collection.dropIndexes().catch(() => {});
+    await Category.collection.dropIndexes().catch(() => {});
+    await ActivityLog.collection.dropIndexes().catch(() => {});
+    await Recommendation.collection.dropIndexes().catch(() => {});
+
     await User.deleteMany({});
     await Job.deleteMany({});
     await Application.deleteMany({});
