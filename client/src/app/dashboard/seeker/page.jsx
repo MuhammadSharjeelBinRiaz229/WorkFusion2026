@@ -1,14 +1,49 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { 
   Sparkles, Briefcase, Search, FileText, MessageSquare, User, 
   MapPin, CheckCircle, Clock, XCircle, Send, Plus, Trash2, LogOut, Check, Lock,
-  LayoutGrid, Link, Star, Globe, Mail, Phone, Eye, ExternalLink, Pencil, Menu, X
+  LayoutGrid, Link, Star, Globe, Mail, Phone, Eye, ExternalLink, Pencil, X, ChevronRight
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+// Disable framer-motion animations for instant responsiveness
+const stripMotionProps = ({
+  initial,
+  animate,
+  exit,
+  variants,
+  whileHover,
+  whileTap,
+  custom,
+  layoutId,
+  transition,
+  viewport,
+  layout,
+  ...rest
+}) => rest;
+
+const motion = {
+  div: ({ children, ...props }) => <div {...stripMotionProps(props)}>{children}</div>,
+  button: ({ children, ...props }) => <button {...stripMotionProps(props)}>{children}</button>,
+  span: ({ children, ...props }) => <span {...stripMotionProps(props)}>{children}</span>,
+  aside: ({ children, ...props }) => <aside {...stripMotionProps(props)}>{children}</aside>,
+  main: ({ children, ...props }) => <main {...stripMotionProps(props)}>{children}</main>,
+  p: ({ children, ...props }) => <p {...stripMotionProps(props)}>{children}</p>,
+  h1: ({ children, ...props }) => <h1 {...stripMotionProps(props)}>{children}</h1>,
+  h2: ({ children, ...props }) => <h2 {...stripMotionProps(props)}>{children}</h2>,
+  h3: ({ children, ...props }) => <h3 {...stripMotionProps(props)}>{children}</h3>,
+  h4: ({ children, ...props }) => <h4 {...stripMotionProps(props)}>{children}</h4>,
+  ul: ({ children, ...props }) => <ul {...stripMotionProps(props)}>{children}</ul>,
+  li: ({ children, ...props }) => <li {...stripMotionProps(props)}>{children}</li>,
+  circle: (props) => <circle {...stripMotionProps(props)} />,
+  form: ({ children, ...props }) => <form {...stripMotionProps(props)}>{children}</form>,
+};
+
+const AnimatePresence = ({ children }) => <>{children}</>;
+
 import ThemeToggle from "../../../components/ThemeToggle";
+import BottomTabBar from "../../../components/BottomTabBar";
 
 const CITIES = ["Islamabad", "Rawalpindi", "Lahore", "Karachi", "Faisalabad", "Peshawar", "Multan", "Sialkot"];
 
@@ -39,7 +74,8 @@ export default function SeekerDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("matches"); // matches, explore, applications, messages, profile, security
   const [user, setUser] = useState(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [accountSheetOpen, setAccountSheetOpen] = useState(false);
+  const profileLoadedRef = useRef(false);
   
   // Recommendations state
   const [recommendedJobs, setRecommendedJobs] = useState([]);
@@ -205,7 +241,6 @@ export default function SeekerDashboard() {
 
   // Fetch Recommended Jobs (AI matching)
   const fetchRecommendations = useCallback(async () => {
-    if (!user) return;
     setRecLoading(true);
     try {
       const res = await apiRequest("/jobs/recommendations");
@@ -218,7 +253,7 @@ export default function SeekerDashboard() {
     } finally {
       setRecLoading(false);
     }
-  }, [user, apiRequest]);
+  }, [apiRequest]);
 
   // Fetch Explore Jobs list
   const fetchExploreJobs = useCallback(async () => {
@@ -307,6 +342,7 @@ export default function SeekerDashboard() {
 
   // Trigger loading based on active tab selection
   useEffect(() => {
+    if (activeTab !== "profile") profileLoadedRef.current = false;
     if (!user) return;
     if (activeTab === "matches") {
       fetchRecommendations();
@@ -317,23 +353,26 @@ export default function SeekerDashboard() {
     } else if (activeTab === "messages") {
       fetchChats();
     } else if (activeTab === "profile") {
-      // Load detailed profile
+      if (profileLoadedRef.current) return;
+      profileLoadedRef.current = true;
+
+      // Load detailed profile — don't trigger loop by updating user state
       apiRequest("/auth/profile")
         .then((res) => res.json())
         .then((result) => {
           if (result.success) {
             setPortfolioList(result.data.portfolio || []);
             localStorage.setItem("user", JSON.stringify(result.data));
-            setUser(result.data);
+            // Update only non-identity fields to avoid re-triggering this effect
+            setUser((prev) => ({ ...prev, ...result.data }));
           }
         });
 
-      // Load user reviews dynamically — reset first to clear stale state
+      // Load reviews once per profile visit
       const userId = user?.id || user?._id;
       setReviews([]);
+      setReviewsLoading(true);
       if (userId) {
-        setReviewsLoading(true);
-        // Safety timeout: always stop loading after 10s to prevent infinite spinner
         const reviewsTimeout = setTimeout(() => setReviewsLoading(false), 10000);
         apiRequest(`/reviews/user/${userId}`)
           .then((res) => res.json())
@@ -653,19 +692,25 @@ export default function SeekerDashboard() {
         <div className="flex flex-col gap-8">
           
           {/* Logo */}
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-lg">
-              W
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-lg">
+                W
+              </div>
+              <span className="font-extrabold text-xl">
+                Work<span className="text-blue-500 font-medium">Fusion</span>
+              </span>
             </div>
-            <span className="font-extrabold text-xl">
-              Work<span className="text-blue-500 font-medium">Fusion</span>
-            </span>
+            <ThemeToggle />
           </div>
 
-          {/* User Bio Summary */}
+          {/* User Bio Summary — click to open Profile */}
           {user && (
-            <div className="p-4 rounded-xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/5 flex flex-col gap-2.5">
-              <span className="text-sm font-bold text-zinc-700 dark:text-zinc-300">{user.fullName}</span>
+            <button
+              onClick={() => setActiveTab("profile")}
+              className="w-full p-4 rounded-xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/5 flex flex-col gap-2.5 text-left hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors group"
+            >
+              <span className="text-sm font-bold text-zinc-700 dark:text-zinc-300 group-hover:text-zinc-900 dark:group-hover:text-white transition-colors">{user.fullName}</span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-semibold self-start uppercase">
                 {user.role}
               </span>
@@ -678,7 +723,7 @@ export default function SeekerDashboard() {
                   <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full" style={{ width: `${user.profileCompletion}%` }} />
                 </div>
               </div>
-            </div>
+            </button>
           )}
 
           {/* Nav Items */}
@@ -689,7 +734,6 @@ export default function SeekerDashboard() {
               { id: "applications", label: "Applications", icon: <FileText size={18} /> },
               { id: "messages", label: "Interview Chats", icon: <MessageSquare size={18} /> },
               { id: "profile", label: "My Profile", icon: <User size={18} /> },
-              { id: "security", label: "Security", icon: <Lock size={18} /> },
             ].map((item) => (
               <button
                 key={item.id}
@@ -722,11 +766,6 @@ export default function SeekerDashboard() {
 
         </div>
 
-        {/* Theme Toggle */}
-        <div className="mb-2">
-          <ThemeToggle />
-        </div>
-
         {/* Logout */}
         <button
           onClick={handleLogout}
@@ -736,147 +775,114 @@ export default function SeekerDashboard() {
         </button>
       </aside>
 
-      {/* Mobile Sticky Top Header */}
-      <header className="md:hidden w-full bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-white/5 px-6 py-4 flex items-center justify-between sticky top-0 z-40">
+      {/* Mobile Header */}
+      <header className="md:hidden fixed top-0 inset-x-0 z-40 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md border-b border-zinc-200 dark:border-white/5 px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-lg">
-            W
-          </div>
-          <span className="font-extrabold text-lg">
-            Work<span className="text-blue-500 font-medium">Fusion</span>
-          </span>
+          <div className="w-7 h-7 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-base">W</div>
+          <span className="font-extrabold text-lg">Work<span className="text-blue-500 font-medium">Fusion</span></span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <ThemeToggle />
-          <button 
-            onClick={() => setMobileMenuOpen(true)}
-            className="p-2 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-xl transition-all"
+          <button
+            onClick={() => setAccountSheetOpen(true)}
+            className="w-9 h-9 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-sm transition-all hover:opacity-80"
+            aria-label="Account menu"
           >
-            <Menu size={20} />
+            {user ? user.fullName.charAt(0).toUpperCase() : "?"}
           </button>
         </div>
       </header>
 
-      {/* Mobile Navigation Slide-over Drawer */}
+      {/* Account Sheet — right slide-over */}
       <AnimatePresence>
-        {mobileMenuOpen && (
+        {accountSheetOpen && (
           <>
-            {/* Backdrop overlay */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setMobileMenuOpen(false)}
+              onClick={() => setAccountSheetOpen(false)}
               className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 md:hidden"
             />
-            {/* Sliding Panel */}
-            <motion.aside 
-              initial={{ x: "-100%" }}
+            <motion.aside
+              initial={{ x: "100%" }}
               animate={{ x: 0 }}
-              exit={{ x: "-100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className="fixed top-0 bottom-0 left-0 w-72 bg-white dark:bg-zinc-950 p-6 flex flex-col justify-between z-50 md:hidden shadow-2xl border-r border-zinc-200 dark:border-white/5"
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 240 }}
+              className="fixed top-0 right-0 bottom-0 w-72 bg-white dark:bg-zinc-950 border-l border-zinc-200 dark:border-white/5 z-50 flex flex-col md:hidden shadow-2xl"
             >
-              <div className="flex flex-col gap-8">
-                
-                {/* Header inside drawer */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-lg">
-                      W
-                    </div>
-                    <span className="font-extrabold text-lg">
-                      Work<span className="text-blue-500 font-medium">Fusion</span>
-                    </span>
+              {/* Sheet header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-white/5">
+                <span className="font-bold text-xs text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Account</span>
+                <button
+                  onClick={() => setAccountSheetOpen(false)}
+                  className="p-2 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-xl transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* User card — tap to go to Profile */}
+              {user && (
+                <button
+                  onClick={() => { setActiveTab("profile"); setAccountSheetOpen(false); }}
+                  className="flex items-center gap-3 px-5 py-4 hover:bg-zinc-50 dark:hover:bg-white/5 transition-all text-left border-b border-zinc-200 dark:border-white/5 w-full"
+                >
+                  <div className="w-11 h-11 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-base shrink-0">
+                    {user.fullName.charAt(0).toUpperCase()}
                   </div>
-                  <button 
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="p-2 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-xl transition-all"
-                  >
-                    <X size={20} />
-                  </button>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200 truncate">{user.fullName}</p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 truncate">{user.email}</p>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-semibold uppercase mt-1 inline-block">{user.role}</span>
+                  </div>
+                  <ChevronRight size={16} className="text-zinc-400 shrink-0" />
+                </button>
+              )}
+
+              {/* Profile strength */}
+              {user && (
+                <div className="px-5 py-3 border-b border-zinc-200 dark:border-white/5">
+                  <div className="flex items-center justify-between text-xs text-zinc-500 mb-1.5">
+                    <span>Profile Strength</span>
+                    <span className="font-semibold text-zinc-700 dark:text-zinc-300">{user.profileCompletion}%</span>
+                  </div>
+                  <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                    <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full transition-all" style={{ width: `${user.profileCompletion}%` }} />
+                  </div>
                 </div>
+              )}
 
-                {/* Profile summary inside drawer */}
-                {user && (
-                  <div className="p-4 rounded-xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/5 flex flex-col gap-2.5">
-                    <span className="text-sm font-bold text-zinc-700 dark:text-zinc-300">{user.fullName}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-semibold self-start uppercase">
-                      {user.role}
-                    </span>
-                    <div className="w-full space-y-1 mt-1.5">
-                      <div className="flex items-center justify-between text-xs text-zinc-500">
-                        <span>Profile Strength</span>
-                        <span className="font-semibold text-zinc-700 dark:text-zinc-300">{user.profileCompletion}%</span>
-                      </div>
-                      <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-                        <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full" style={{ width: `${user.profileCompletion}%` }} />
-                      </div>
-                    </div>
-                  </div>
+              {/* Secondary actions */}
+              <div className="flex-1 px-3 py-3 space-y-1">
+                {user?.roles && user.roles.includes("Employer") && (
+                  <button
+                    onClick={() => { handleSwitchRole("Employer"); setAccountSheetOpen(false); }}
+                    className="w-full px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-semibold text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 bg-blue-500/5 transition-all"
+                  >
+                    <Briefcase size={18} /> Switch to Employer
+                  </button>
                 )}
-
-                {/* Navigation links inside drawer */}
-                <nav className="flex flex-col gap-1.5 relative">
-                  {[
-                    { id: "matches", label: "AI Match Feed", icon: <Sparkles size={18} /> },
-                    { id: "explore", label: "Explore Jobs", icon: <Search size={18} /> },
-                    { id: "applications", label: "Applications", icon: <FileText size={18} /> },
-                    { id: "messages", label: "Interview Chats", icon: <MessageSquare size={18} /> },
-                    { id: "profile", label: "My Profile", icon: <User size={18} /> },
-                    { id: "security", label: "Security", icon: <Lock size={18} /> },
-                  ].map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        setActiveTab(item.id);
-                        setMobileMenuOpen(false);
-                      }}
-                      className={`relative w-full px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium transition-all ${
-                        activeTab === item.id 
-                          ? "text-zinc-900 dark:text-white font-bold" 
-                          : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
-                      }`}
-                    >
-                      {activeTab === item.id && (
-                        <motion.div 
-                          layoutId="activeTabBgSeekerMobile" 
-                          className="absolute inset-0 bg-zinc-100 dark:bg-white/5 rounded-xl -z-10"
-                          transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                        />
-                      )}
-                      {item.icon} {item.label}
-                    </button>
-                  ))}
-                  {user?.roles && user.roles.includes("Employer") && (
-                    <button
-                      onClick={() => {
-                        handleSwitchRole("Employer");
-                        setMobileMenuOpen(false);
-                      }}
-                      className="w-full px-4 py-2.5 rounded-xl flex items-center gap-3 text-sm font-semibold text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 bg-blue-500/5 transition-all mt-4"
-                    >
-                      <Briefcase size={18} /> Switch to Employer
-                    </button>
-                  )}
-                </nav>
               </div>
 
               {/* Logout */}
-              <button
-                onClick={handleLogout}
-                className="w-full px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium text-red-400 hover:bg-red-500/10 transition-all"
-              >
-                <LogOut size={18} /> Logout
-              </button>
+              <div className="px-3 pb-6 pt-2 border-t border-zinc-200 dark:border-white/5">
+                <button
+                  onClick={handleLogout}
+                  className="w-full px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium text-red-400 hover:bg-red-500/10 transition-all"
+                >
+                  <LogOut size={18} /> Logout
+                </button>
+              </div>
             </motion.aside>
           </>
         )}
       </AnimatePresence>
 
       {/* Main Panel */}
-      <main className="flex-1 p-6 md:p-10 relative overflow-y-auto max-h-screen">
-        
+      <main className="flex-1 px-4 md:px-10 pt-14 md:pt-8 pb-24 md:pb-10 relative overflow-y-auto max-h-screen">
+
+
         {/* ================= TAB: MATCHES ================= */}
         {activeTab === "matches" && (
           <div className="flex flex-col gap-6">
@@ -1844,8 +1850,9 @@ export default function SeekerDashboard() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">City (Pakistan Location)</label>
+                      <label htmlFor="profileCity" className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">City (Pakistan Location)</label>
                       <select
+                        id="profileCity"
                         value={profileCity}
                         onChange={(e) => setProfileCity(e.target.value)}
                         className="w-full px-4 py-3 rounded-xl bg-zinc-200 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm"
@@ -1856,8 +1863,9 @@ export default function SeekerDashboard() {
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Phone Number</label>
+                      <label htmlFor="profilePhone" className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Phone Number</label>
                       <input
+                        id="profilePhone"
                         type="text"
                         value={profilePhone}
                         onChange={(e) => setProfilePhone(e.target.value)}
@@ -1868,8 +1876,9 @@ export default function SeekerDashboard() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Years of Experience</label>
+                      <label htmlFor="profileExperience" className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Years of Experience</label>
                       <input
+                        id="profileExperience"
                         type="number"
                         value={profileExperience}
                         onChange={(e) => setProfileExperience(Number(e.target.value))}
@@ -1877,8 +1886,9 @@ export default function SeekerDashboard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Availability Note</label>
+                      <label htmlFor="profileAvailability" className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Availability Note</label>
                       <input
+                        id="profileAvailability"
                         type="text"
                         value={profileAvailability}
                         onChange={(e) => setProfileAvailability(e.target.value)}
@@ -1890,8 +1900,9 @@ export default function SeekerDashboard() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Standard Hourly Rate (PKR/hr)</label>
+                      <label htmlFor="profileHourlyRate" className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Standard Hourly Rate (PKR/hr)</label>
                       <input
+                        id="profileHourlyRate"
                         type="number"
                         value={profileHourlyRate}
                         onChange={(e) => setProfileHourlyRate(Number(e.target.value))}
@@ -1902,8 +1913,9 @@ export default function SeekerDashboard() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Skills (Comma-separated)</label>
+                    <label htmlFor="profileSkills" className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Skills (Comma-separated)</label>
                     <input
+                      id="profileSkills"
                       type="text"
                       value={profileSkills}
                       onChange={(e) => setProfileSkills(e.target.value)}
@@ -1912,8 +1924,9 @@ export default function SeekerDashboard() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Professional Bio</label>
+                    <label htmlFor="profileBio" className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Professional Bio</label>
                     <textarea
+                      id="profileBio"
                       value={profileBio}
                       onChange={(e) => setProfileBio(e.target.value)}
                       rows={4}
@@ -1923,10 +1936,11 @@ export default function SeekerDashboard() {
 
                   {/* Resume Link */}
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Resume Link</label>
+                    <label htmlFor="profileResume" className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Resume Link</label>
                     <div className="relative flex items-center">
                       <span className="absolute left-4 text-zinc-500"><Link size={16} /></span>
                       <input
+                        id="profileResume"
                         type="text"
                         value={profileResume}
                         onChange={(e) => setProfileResume(e.target.value)}
@@ -1938,10 +1952,11 @@ export default function SeekerDashboard() {
 
                   {/* Portfolio Website Link */}
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Portfolio / Website</label>
+                    <label htmlFor="profilePortfolioWebsite" className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Portfolio / Website</label>
                     <div className="relative flex items-center">
                       <span className="absolute left-4 text-zinc-500"><Link size={16} /></span>
                       <input
+                        id="profilePortfolioWebsite"
                         type="text"
                         value={profilePortfolioWebsite}
                         onChange={(e) => setProfilePortfolioWebsite(e.target.value)}
@@ -2192,69 +2207,78 @@ export default function SeekerDashboard() {
                     )}
                   </div>
                 )}
+
+                {/* ─── Security ─────────────────────────────────── */}
+                <div className="mt-10 pt-8 border-t border-zinc-200 dark:border-white/5">
+                  <div className="mb-6">
+                    <h3 className="text-2xl font-extrabold">Security</h3>
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Change your account password. Requires your current password for verification.</p>
+                  </div>
+
+                  {securityMessage && (
+                    <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-sm flex items-center gap-2 mb-4">
+                      <Check size={18} />
+                      <span>{securityMessage}</span>
+                    </div>
+                  )}
+
+                  {securityError && (
+                    <div className="p-4 rounded-xl bg-red-950/30 border border-red-500/20 text-red-400 text-sm mb-4">
+                      {securityError}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleChangePassword} className="space-y-6 bg-zinc-100 dark:bg-zinc-950 p-6 rounded-2xl border border-zinc-200 dark:border-white/5 max-w-xl">
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Current Password</label>
+                      <input
+                        type="password"
+                        required
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full px-4 py-3 rounded-xl bg-zinc-200 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm text-zinc-800 dark:text-zinc-200 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">New Password</label>
+                      <input
+                        type="password"
+                        required
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Minimum 6 characters"
+                        className="w-full px-4 py-3 rounded-xl bg-zinc-200 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm text-zinc-800 dark:text-zinc-200 outline-none"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={securityLoading}
+                      className="px-6 py-3 bg-white text-black font-bold text-sm rounded-xl hover:bg-zinc-200 transition-all glow-btn"
+                    >
+                      {securityLoading ? "Updating Password..." : "Update Password"}
+                    </button>
+                  </form>
+                </div>
               </div>
             )}
-          </div>
-        )}
-
-        {/* ================= TAB: SECURITY ================= */}
-        {activeTab === "security" && (
-          <div className="flex flex-col gap-6 max-w-xl">
-            <div>
-              <h2 className="text-3xl font-extrabold">Security Settings</h2>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Change your account password securely. Requires validation of your current password.</p>
-            </div>
-
-            {securityMessage && (
-              <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-sm flex items-center gap-2">
-                <Check size={18} />
-                <span>{securityMessage}</span>
-              </div>
-            )}
-
-            {securityError && (
-              <div className="p-4 rounded-xl bg-red-950/30 border border-red-500/20 text-red-400 text-sm">
-                {securityError}
-              </div>
-            )}
-
-            <form onSubmit={handleChangePassword} className="space-y-6 bg-zinc-100 dark:bg-zinc-950 p-6 rounded-2xl border border-zinc-200 dark:border-white/5">
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Current Password</label>
-                <input
-                  type="password"
-                  required
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-4 py-3 rounded-xl bg-zinc-200 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm text-zinc-800 dark:text-zinc-200 outline-none"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">New Password</label>
-                <input
-                  type="password"
-                  required
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Minimum 6 characters"
-                  className="w-full px-4 py-3 rounded-xl bg-zinc-200 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm text-zinc-800 dark:text-zinc-200 outline-none"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={securityLoading}
-                className="px-6 py-3 bg-white text-black font-bold text-sm rounded-xl hover:bg-zinc-200 transition-all glow-btn"
-              >
-                {securityLoading ? "Updating Password..." : "Update Password"}
-              </button>
-            </form>
           </div>
         )}
 
       </main>
+
+      {/* Mobile Bottom Tab Bar */}
+      <BottomTabBar
+        tabs={[
+          { id: "matches", label: "Home",     icon: Sparkles },
+          { id: "explore", label: "Jobs",     icon: Search },
+          { id: "applications", label: "Activity", icon: FileText },
+          { id: "messages", label: "Chat",    icon: MessageSquare },
+          { id: "profile", label: "Profile",  icon: User },
+        ]}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
 
       {/* ================= MODAL: APPLY FORM ================= */}
       {applyingJob && (

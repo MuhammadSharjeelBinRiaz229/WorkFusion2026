@@ -16,6 +16,7 @@ const TEST_DB_URI = process.env.MONGODB_URI
   ? (process.env.MONGODB_URI.includes("/?") 
       ? process.env.MONGODB_URI.replace("/?", "/workfusion_test?") 
       : process.env.MONGODB_URI + "/workfusion_test")
+  : "mongodb://127.0.0.1:27017/workfusion_test";
 
 beforeAll(async () => {
   // Override database connection to testing database

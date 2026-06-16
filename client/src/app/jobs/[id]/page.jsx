@@ -287,7 +287,7 @@ export default function JobDetailPage() {
                     <span>Base: {job.employerId?.city || job.location}</span>
                     <span>•</span>
                     <span className="flex items-center gap-0.5 text-amber-500 dark:text-amber-400 font-semibold">
-                      <Star size={12} className="fill-amber-500 dark:fill-amber-400 text-amber-500 dark:text-amber-400" /> {job.employerId?.rating || "5.0"}
+                      <Star size={12} className="fill-amber-500 dark:fill-amber-400 text-amber-500 dark:text-amber-400" /> {typeof job.employerId?.rating === "number" ? job.employerId.rating.toFixed(1) : parseFloat(job.employerId?.rating || 5).toFixed(1)}
                     </span>
                   </div>
                 </div>

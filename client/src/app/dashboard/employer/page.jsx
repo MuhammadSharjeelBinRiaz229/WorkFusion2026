@@ -5,10 +5,45 @@ import { useRouter } from "next/navigation";
 import {
   Plus, Briefcase, FileText, MessageSquare, Star, Sparkles,
   MapPin, CheckCircle, Clock, XCircle, Send, LogOut, Check, ChevronRight, User, Lock,
-  Search, Link, LayoutGrid, Menu, X, TrendingUp, Users, Award, AlertCircle
+  Search, Link, LayoutGrid, X, TrendingUp, Users, Award, AlertCircle
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+// Disable framer-motion animations for instant responsiveness
+const stripMotionProps = ({
+  initial,
+  animate,
+  exit,
+  variants,
+  whileHover,
+  whileTap,
+  custom,
+  layoutId,
+  transition,
+  viewport,
+  layout,
+  ...rest
+}) => rest;
+
+const motion = {
+  div: ({ children, ...props }) => <div {...stripMotionProps(props)}>{children}</div>,
+  button: ({ children, ...props }) => <button {...stripMotionProps(props)}>{children}</button>,
+  span: ({ children, ...props }) => <span {...stripMotionProps(props)}>{children}</span>,
+  aside: ({ children, ...props }) => <aside {...stripMotionProps(props)}>{children}</aside>,
+  main: ({ children, ...props }) => <main {...stripMotionProps(props)}>{children}</main>,
+  p: ({ children, ...props }) => <p {...stripMotionProps(props)}>{children}</p>,
+  h1: ({ children, ...props }) => <h1 {...stripMotionProps(props)}>{children}</h1>,
+  h2: ({ children, ...props }) => <h2 {...stripMotionProps(props)}>{children}</h2>,
+  h3: ({ children, ...props }) => <h3 {...stripMotionProps(props)}>{children}</h3>,
+  h4: ({ children, ...props }) => <h4 {...stripMotionProps(props)}>{children}</h4>,
+  ul: ({ children, ...props }) => <ul {...stripMotionProps(props)}>{children}</ul>,
+  li: ({ children, ...props }) => <li {...stripMotionProps(props)}>{children}</li>,
+  circle: (props) => <circle {...stripMotionProps(props)} />,
+  form: ({ children, ...props }) => <form {...stripMotionProps(props)}>{children}</form>,
+};
+
+const AnimatePresence = ({ children }) => <>{children}</>;
+
 import ThemeToggle from "../../../components/ThemeToggle";
+import BottomTabBar from "../../../components/BottomTabBar";
 
 const CITIES = ["Islamabad", "Rawalpindi", "Lahore", "Karachi", "Faisalabad", "Peshawar", "Multan", "Sialkot"];
 
@@ -69,14 +104,13 @@ const NAV_ITEMS = [
   { id: "talents",    label: "Find Talent",       icon: Search },
   { id: "messages",   label: "Interview Chats",   icon: MessageSquare },
   { id: "profile",    label: "My Profile",        icon: User },
-  { id: "security",   label: "Security",          icon: Lock },
 ];
 
 export default function EmployerDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("postings");
   const [user, setUser] = useState(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [accountSheetOpen, setAccountSheetOpen] = useState(false);
 
   // Find Talent state
   const [talentQuery, setTalentQuery] = useState("");
@@ -172,7 +206,7 @@ export default function EmployerDashboard() {
   // Close drawer on tab change
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    setDrawerOpen(false);
+    setAccountSheetOpen(false);
   };
 
   // API Helper with auto token refresh
@@ -503,20 +537,23 @@ export default function EmployerDashboard() {
               Work<span className="text-blue-500 font-medium">Fusion</span>
             </span>
           </div>
-          {onClose && (
+          {onClose ? (
             <button onClick={onClose} className="p-1 rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors md:hidden">
               <X size={20} />
             </button>
+          ) : (
+            <ThemeToggle />
           )}
         </div>
 
-        {/* User Bio */}
+        {/* User Bio — click to open Profile */}
         {user && (
-          <motion.div
+          <motion.button
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="p-4 rounded-xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/5 flex flex-col gap-2.5"
+            onClick={() => handleTabChange("profile")}
+            className="w-full p-4 rounded-xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/5 flex flex-col gap-2.5 text-left hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors group"
           >
             <div className="flex items-center gap-3">
               {user.profilePicture ? (
@@ -527,14 +564,14 @@ export default function EmployerDashboard() {
                 </div>
               )}
               <div>
-                <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200 block leading-tight">{user.fullName}</span>
+                <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200 block leading-tight group-hover:text-zinc-900 dark:group-hover:text-white transition-colors">{user.fullName}</span>
                 <span className="text-[10px] text-zinc-500">{user.email}</span>
               </div>
             </div>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-semibold self-start uppercase">
               {user.role}
             </span>
-          </motion.div>
+          </motion.button>
         )}
 
         {/* Nav Items */}
@@ -590,12 +627,8 @@ export default function EmployerDashboard() {
         </nav>
       </div>
 
-      {/* Theme Toggle & Logout */}
-      <div className="space-y-3 pb-2">
-        <div className="flex justify-between items-center px-2">
-          <span className="text-xs text-zinc-500 font-bold uppercase tracking-wide">Theme</span>
-          <ThemeToggle />
-        </div>
+      {/* Logout */}
+      <div className="pb-2">
         <button
           onClick={handleLogout}
           className="w-full px-4 py-2.5 rounded-xl flex items-center gap-3 text-sm font-medium text-red-500 hover:bg-red-500/10 transition-all"
@@ -610,27 +643,26 @@ export default function EmployerDashboard() {
     <div className="min-h-screen bg-zinc-50 dark:bg-[#09090b] text-zinc-900 dark:text-white transition-colors duration-300">
 
       {/* ─── Mobile Header ──────────────────────────────────────────────── */}
-      <header className="md:hidden fixed top-0 inset-x-0 z-30 bg-zinc-50/90 dark:bg-[#09090b]/90 backdrop-blur-md border-b border-zinc-200 dark:border-white/5 px-4 h-14 flex items-center justify-between">
+      <header className="md:hidden fixed top-0 inset-x-0 z-40 bg-white/90 dark:bg-[#09090b]/90 backdrop-blur-md border-b border-zinc-200 dark:border-white/5 px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-base">W</div>
           <span className="font-extrabold text-lg">Work<span className="text-blue-500 font-medium">Fusion</span></span>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setDrawerOpen(true)}
-            className="p-2 rounded-xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-zinc-600 dark:text-zinc-300"
-            aria-label="Open navigation menu"
+          <button
+            onClick={() => setAccountSheetOpen(true)}
+            className="w-9 h-9 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-sm transition-all hover:opacity-80"
+            aria-label="Account menu"
           >
-            <Menu size={20} />
-          </motion.button>
+            {user ? user.fullName.charAt(0).toUpperCase() : "?"}
+          </button>
         </div>
       </header>
 
-      {/* ─── Mobile Slide-over Drawer ───────────────────────────────────── */}
+      {/* ─── Account Sheet — right slide-over ───────────────────────────── */}
       <AnimatePresence>
-        {drawerOpen && (
+        {accountSheetOpen && (
           <>
             <motion.div
               key="overlay"
@@ -638,18 +670,73 @@ export default function EmployerDashboard() {
               initial="hidden"
               animate="visible"
               exit="exit"
-              onClick={() => setDrawerOpen(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+              onClick={() => setAccountSheetOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 md:hidden"
             />
             <motion.aside
-              key="drawer"
-              variants={slideInLeft}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-              className="fixed top-0 left-0 bottom-0 w-72 bg-zinc-100 dark:bg-zinc-950 border-r border-zinc-200 dark:border-white/5 z-50 p-5 md:hidden overflow-y-auto"
+              key="sheet"
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 240 }}
+              className="fixed top-0 right-0 bottom-0 w-72 bg-white dark:bg-zinc-950 border-l border-zinc-200 dark:border-white/5 z-50 flex flex-col md:hidden shadow-2xl"
             >
-              <NavContent onClose={() => setDrawerOpen(false)} />
+              {/* Sheet header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-white/5">
+                <span className="font-bold text-xs text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Account</span>
+                <button
+                  onClick={() => setAccountSheetOpen(false)}
+                  className="p-2 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-xl transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* User card — tap to go to Profile */}
+              {user && (
+                <button
+                  onClick={() => { setActiveTab("profile"); setAccountSheetOpen(false); }}
+                  className="flex items-center gap-3 px-5 py-4 hover:bg-zinc-50 dark:hover:bg-white/5 transition-all text-left border-b border-zinc-200 dark:border-white/5 w-full"
+                >
+                  <div className="w-11 h-11 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-base shrink-0">
+                    {user.fullName.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200 truncate">{user.fullName}</p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 truncate">{user.email}</p>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/15 text-green-500 font-semibold uppercase mt-1 inline-block">{user.role}</span>
+                  </div>
+                  <ChevronRight size={16} className="text-zinc-400 shrink-0" />
+                </button>
+              )}
+
+              {/* Secondary actions */}
+              <div className="flex-1 px-3 py-3 space-y-1">
+                <button
+                  onClick={() => { setActiveTab("talents"); setAccountSheetOpen(false); }}
+                  className={`w-full px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium transition-all ${activeTab === "talents" ? "bg-zinc-100 dark:bg-white/5 text-zinc-900 dark:text-white font-semibold" : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/5"}`}
+                >
+                  <Search size={18} /> Find Talent
+                </button>
+                {user?.roles && user.roles.includes("Service Seeker") && (
+                  <button
+                    onClick={() => { handleSwitchRole("Service Seeker"); setAccountSheetOpen(false); }}
+                    className="w-full px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 bg-amber-500/5 transition-all mt-2"
+                  >
+                    <Briefcase size={18} /> Switch to Seeker
+                  </button>
+                )}
+              </div>
+
+              {/* Logout */}
+              <div className="px-3 pb-6 pt-2 border-t border-zinc-200 dark:border-white/5">
+                <button
+                  onClick={handleLogout}
+                  className="w-full px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium text-red-500 hover:bg-red-500/10 transition-all"
+                >
+                  <LogOut size={16} /> Logout
+                </button>
+              </div>
             </motion.aside>
           </>
         )}
@@ -662,7 +749,8 @@ export default function EmployerDashboard() {
         </aside>
 
         {/* ─── Main Content Panel ───────────────────────────────────────── */}
-        <main className="flex-1 pt-14 md:pt-0 p-5 md:p-8 lg:p-10 overflow-y-auto min-h-screen">
+        <main className="flex-1 pt-14 md:pt-8 px-4 md:px-8 lg:px-10 pb-24 md:pb-8 lg:pb-10 overflow-y-auto min-h-screen">
+
 
           <AnimatePresence mode="wait">
 
@@ -763,14 +851,14 @@ export default function EmployerDashboard() {
                 >
                   <motion.div variants={cardItem} className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Job Title</label>
-                      <input type="text" required value={jobTitle} onChange={(e) => setJobTitle(e.target.value)}
+                      <label htmlFor="jobTitle" className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Job Title</label>
+                      <input id="jobTitle" type="text" required value={jobTitle} onChange={(e) => setJobTitle(e.target.value)}
                         placeholder="e.g. Senior MERN Developer Needed"
                         className="w-full px-4 py-3 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-500/50 transition-colors" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Job Category</label>
-                      <select value={jobCategory} onChange={(e) => setJobCategory(e.target.value)}
+                      <label htmlFor="jobCategory" className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Job Category</label>
+                      <select id="jobCategory" value={jobCategory} onChange={(e) => setJobCategory(e.target.value)}
                         className="w-full px-4 py-3 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm outline-none">
                         <option value="Web Development">Web Development</option>
                         <option value="Mobile App Development">Mobile App Development</option>
@@ -784,8 +872,8 @@ export default function EmployerDashboard() {
 
                   <motion.div variants={cardItem} className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Service Type</label>
-                      <select value={jobServiceType} onChange={(e) => setJobServiceType(e.target.value)}
+                      <label htmlFor="jobServiceType" className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Service Type</label>
+                      <select id="jobServiceType" value={jobServiceType} onChange={(e) => setJobServiceType(e.target.value)}
                         className="w-full px-4 py-3 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm outline-none">
                         <option value="Online">Online (Digital)</option>
                         <option value="Physical">Physical (Local)</option>
@@ -793,8 +881,8 @@ export default function EmployerDashboard() {
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Contract Type</label>
-                      <select value={jobWorkType} onChange={(e) => setJobWorkType(e.target.value)}
+                      <label htmlFor="jobWorkType" className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Contract Type</label>
+                      <select id="jobWorkType" value={jobWorkType} onChange={(e) => setJobWorkType(e.target.value)}
                         className="w-full px-4 py-3 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm outline-none">
                         <option value="Project">Project-Based</option>
                         <option value="Hourly">Hourly</option>
@@ -803,8 +891,8 @@ export default function EmployerDashboard() {
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">City</label>
-                      <select value={jobLocation} onChange={(e) => setJobLocation(e.target.value)}
+                      <label htmlFor="jobLocation" className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">City</label>
+                      <select id="jobLocation" value={jobLocation} onChange={(e) => setJobLocation(e.target.value)}
                         className="w-full px-4 py-3 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm outline-none">
                         {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
                       </select>
@@ -813,8 +901,8 @@ export default function EmployerDashboard() {
 
                   <motion.div variants={cardItem} className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Experience Level</label>
-                      <select value={jobExperienceLevel} onChange={(e) => setJobExperienceLevel(e.target.value)}
+                      <label htmlFor="jobExperienceLevel" className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Experience Level</label>
+                      <select id="jobExperienceLevel" value={jobExperienceLevel} onChange={(e) => setJobExperienceLevel(e.target.value)}
                         className="w-full px-4 py-3 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm outline-none">
                         <option value="Entry Level">Entry Level</option>
                         <option value="Intermediate">Intermediate</option>
@@ -822,8 +910,8 @@ export default function EmployerDashboard() {
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Project Timeline</label>
-                      <select value={jobTimeline} onChange={(e) => setJobTimeline(e.target.value)}
+                      <label htmlFor="jobTimeline" className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Project Timeline</label>
+                      <select id="jobTimeline" value={jobTimeline} onChange={(e) => setJobTimeline(e.target.value)}
                         className="w-full px-4 py-3 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm outline-none">
                         <option value="">Not Specified</option>
                         <option value="Less than 1 month">Less than 1 month</option>
@@ -836,28 +924,28 @@ export default function EmployerDashboard() {
 
                   <motion.div variants={cardItem} className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Required Skills (Comma separated)</label>
-                      <input type="text" required value={jobSkills} onChange={(e) => setJobSkills(e.target.value)}
+                      <label htmlFor="jobSkills" className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Required Skills (Comma separated)</label>
+                      <input id="jobSkills" type="text" required value={jobSkills} onChange={(e) => setJobSkills(e.target.value)}
                         placeholder="React, Node.js, TypeScript"
                         className="w-full px-4 py-3 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-500/50 transition-colors" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Exp. (years)</label>
-                        <input type="number" required value={jobExp} onChange={(e) => setJobExp(Number(e.target.value))}
+                        <label htmlFor="jobExp" className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Exp. (years)</label>
+                        <input id="jobExp" type="number" required value={jobExp} onChange={(e) => setJobExp(Number(e.target.value))}
                           className="w-full px-4 py-3 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm text-zinc-800 dark:text-zinc-200 outline-none" />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">{jobWorkType === "Hourly" ? "Hourly (PKR)" : "Budget (PKR)"}</label>
-                        <input type="number" required value={jobBudget} onChange={(e) => setJobBudget(Number(e.target.value))}
+                        <label htmlFor="jobBudget" className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">{jobWorkType === "Hourly" ? "Hourly (PKR)" : "Budget (PKR)"}</label>
+                        <input id="jobBudget" type="number" required value={jobBudget} onChange={(e) => setJobBudget(Number(e.target.value))}
                           className="w-full px-4 py-3 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm text-zinc-800 dark:text-zinc-200 outline-none" />
                       </div>
                     </div>
                   </motion.div>
 
                   <motion.div variants={cardItem} className="space-y-2">
-                    <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Job Description</label>
-                    <textarea required value={jobDesc} onChange={(e) => setJobDesc(e.target.value)} rows={6}
+                    <label htmlFor="jobDesc" className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Job Description</label>
+                    <textarea id="jobDesc" required value={jobDesc} onChange={(e) => setJobDesc(e.target.value)} rows={6}
                       placeholder="Detail the project guidelines, expectations, deliverables, and requirements..."
                       className="w-full px-4 py-3 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-500/50 transition-colors resize-none" />
                   </motion.div>
@@ -950,7 +1038,11 @@ export default function EmployerDashboard() {
                               <div className="flex flex-wrap items-center gap-4 text-xs">
                                 <div className="flex items-center gap-1 text-amber-400">
                                   <Star size={13} fill="currentColor" className="shrink-0" />
-                                  <span className="font-bold">{app.seekerId.rating || 5.0}</span>
+                                  <span className="font-bold">
+                                    {typeof app.seekerId.rating === "number" 
+                                      ? app.seekerId.rating.toFixed(1) 
+                                      : parseFloat(app.seekerId.rating || 5).toFixed(1)}
+                                  </span>
                                   <span className="text-zinc-500">({app.seekerId.reviewCount || 0} reviews)</span>
                                 </div>
                                 <div className="text-zinc-500">
@@ -1287,62 +1379,60 @@ export default function EmployerDashboard() {
                     {profileLoading ? "Updating Profile..." : "Save Profile Details"}
                   </motion.button>
                 </motion.form>
-              </motion.div>
-            )}
 
-            {/* ═══════════════ TAB: SECURITY ═══════════════ */}
-            {activeTab === "security" && (
-              <motion.div key="security" variants={tabContent} initial="hidden" animate="visible" exit="exit" className="flex flex-col gap-6 max-w-xl">
-                <div>
-                  <h2 className="text-2xl md:text-3xl font-extrabold">Security Settings</h2>
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Change your account password securely. Requires validation of your current password.</p>
-                </div>
+                {/* ─── Security ───────────────────────────────── */}
+                <div className="mt-8 pt-8 border-t border-zinc-200 dark:border-white/5">
+                  <div className="mb-6">
+                    <h3 className="text-xl font-extrabold">Security</h3>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Change your account password. Requires your current password for verification.</p>
+                  </div>
 
-                <AnimatePresence>
-                  {securityMessage && (
-                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                      className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-500 text-sm flex items-center gap-2">
-                      <Check size={18} /><span>{securityMessage}</span>
-                    </motion.div>
-                  )}
-                  {securityError && (
-                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                      className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-                      {securityError}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                  <AnimatePresence>
+                    {securityMessage && (
+                      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                        className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-500 text-sm flex items-center gap-2 mb-4">
+                        <Check size={18} /><span>{securityMessage}</span>
+                      </motion.div>
+                    )}
+                    {securityError && (
+                      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                        className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm mb-4">
+                        {securityError}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
-                <motion.form
-                  variants={staggerContainer}
-                  initial="hidden"
-                  animate="visible"
-                  onSubmit={handleChangePassword}
-                  className="space-y-6 bg-white dark:bg-zinc-950 p-6 rounded-2xl border border-zinc-200 dark:border-white/5"
-                >
-                  <motion.div variants={cardItem} className="space-y-2">
-                    <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Current Password</label>
-                    <input type="password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full px-4 py-3 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-500/50 transition-colors" />
-                  </motion.div>
-                  <motion.div variants={cardItem} className="space-y-2">
-                    <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">New Password</label>
-                    <input type="password" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Minimum 6 characters"
-                      className="w-full px-4 py-3 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-500/50 transition-colors" />
-                  </motion.div>
-                  <motion.button
-                    variants={cardItem}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.97 }}
-                    type="submit"
-                    disabled={securityLoading}
-                    className="px-6 py-3 bg-zinc-900 dark:bg-white text-white dark:text-black font-bold text-sm rounded-xl hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all disabled:opacity-50"
+                  <motion.form
+                    variants={staggerContainer}
+                    initial="hidden"
+                    animate="visible"
+                    onSubmit={handleChangePassword}
+                    className="space-y-6 bg-white dark:bg-zinc-950 p-6 rounded-2xl border border-zinc-200 dark:border-white/5 max-w-xl"
                   >
-                    {securityLoading ? "Updating Password..." : "Update Password"}
-                  </motion.button>
-                </motion.form>
+                    <motion.div variants={cardItem} className="space-y-2">
+                      <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Current Password</label>
+                      <input type="password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full px-4 py-3 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-500/50 transition-colors" />
+                    </motion.div>
+                    <motion.div variants={cardItem} className="space-y-2">
+                      <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">New Password</label>
+                      <input type="password" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Minimum 6 characters"
+                        className="w-full px-4 py-3 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-500/50 transition-colors" />
+                    </motion.div>
+                    <motion.button
+                      variants={cardItem}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.97 }}
+                      type="submit"
+                      disabled={securityLoading}
+                      className="px-6 py-3 bg-zinc-900 dark:bg-white text-white dark:text-black font-bold text-sm rounded-xl hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all disabled:opacity-50"
+                    >
+                      {securityLoading ? "Updating Password..." : "Update Password"}
+                    </motion.button>
+                  </motion.form>
+                </div>
               </motion.div>
             )}
 
@@ -1434,7 +1524,11 @@ export default function EmployerDashboard() {
                             <div className="flex items-center gap-4 text-xs">
                               <div className="flex items-center gap-1 text-amber-400">
                                 <Star size={13} fill="currentColor" />
-                                <span className="font-bold">{talent.rating || 5.0}</span>
+                                <span className="font-bold">
+                                   {typeof talent.rating === "number" 
+                                     ? talent.rating.toFixed(1) 
+                                     : parseFloat(talent.rating || 5).toFixed(1)}
+                                 </span>
                                 <span className="text-zinc-500">({talent.reviewCount || 0} reviews)</span>
                               </div>
                               <div className="text-zinc-500">Exp: <strong className="text-zinc-700 dark:text-zinc-300">{talent.experience || 0} yrs</strong></div>
@@ -1481,6 +1575,19 @@ export default function EmployerDashboard() {
           </AnimatePresence>
         </main>
       </div>
+
+      {/* Mobile Bottom Tab Bar */}
+      <BottomTabBar
+        tabs={[
+          { id: "postings",   label: "Dashboard", icon: LayoutGrid },
+          { id: "createJob",  label: "Post Job",  icon: Plus },
+          { id: "applicants", label: "Applicants",icon: Users },
+          { id: "messages",   label: "Chat",      icon: MessageSquare },
+          { id: "profile",    label: "Profile",   icon: User },
+        ]}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
 
       {/* ═══════════════ MODAL: LEAVE REVIEW ═══════════════ */}
       <AnimatePresence>
@@ -1638,7 +1745,11 @@ export default function EmployerDashboard() {
                     <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Professional Stats</h4>
                     <div className="flex justify-between items-center">
                       <span className="text-zinc-500">Rating</span>
-                      <span className="font-bold text-amber-400">★ {selectedProposalForPopup.seekerId.rating || 5}</span>
+                       <span className="font-bold text-amber-400">
+                         ★ {typeof selectedProposalForPopup.seekerId.rating === "number" 
+                           ? selectedProposalForPopup.seekerId.rating.toFixed(1) 
+                           : parseFloat(selectedProposalForPopup.seekerId.rating || 5).toFixed(1)}
+                       </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-zinc-500">Reviews</span>

@@ -4,14 +4,51 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { 
   ShieldAlert, Users, Briefcase, FileText, Settings, Sparkles, 
-  CheckCircle, AlertTriangle, LogOut, Plus, RefreshCw, BarChart2, Check
+  CheckCircle, AlertTriangle, LogOut, Plus, RefreshCw, BarChart2, Check, X, ChevronRight
 } from "lucide-react";
+// Disable framer-motion animations for instant responsiveness
+const stripMotionProps = ({
+  initial,
+  animate,
+  exit,
+  variants,
+  whileHover,
+  whileTap,
+  custom,
+  layoutId,
+  transition,
+  viewport,
+  layout,
+  ...rest
+}) => rest;
+
+const motion = {
+  div: ({ children, ...props }) => <div {...stripMotionProps(props)}>{children}</div>,
+  button: ({ children, ...props }) => <button {...stripMotionProps(props)}>{children}</button>,
+  span: ({ children, ...props }) => <span {...stripMotionProps(props)}>{children}</span>,
+  aside: ({ children, ...props }) => <aside {...stripMotionProps(props)}>{children}</aside>,
+  main: ({ children, ...props }) => <main {...stripMotionProps(props)}>{children}</main>,
+  p: ({ children, ...props }) => <p {...stripMotionProps(props)}>{children}</p>,
+  h1: ({ children, ...props }) => <h1 {...stripMotionProps(props)}>{children}</h1>,
+  h2: ({ children, ...props }) => <h2 {...stripMotionProps(props)}>{children}</h2>,
+  h3: ({ children, ...props }) => <h3 {...stripMotionProps(props)}>{children}</h3>,
+  h4: ({ children, ...props }) => <h4 {...stripMotionProps(props)}>{children}</h4>,
+  ul: ({ children, ...props }) => <ul {...stripMotionProps(props)}>{children}</ul>,
+  li: ({ children, ...props }) => <li {...stripMotionProps(props)}>{children}</li>,
+  circle: (props) => <circle {...stripMotionProps(props)} />,
+  form: ({ children, ...props }) => <form {...stripMotionProps(props)}>{children}</form>,
+};
+
+const AnimatePresence = ({ children }) => <>{children}</>;
+
 import ThemeToggle from "../../../components/ThemeToggle";
+import BottomTabBar from "../../../components/BottomTabBar";
 
 export default function AdminDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("analytics"); // analytics, moderation, categories
   const [user, setUser] = useState(null);
+  const [accountSheetOpen, setAccountSheetOpen] = useState(false);
 
   // Analytics state
   const [metrics, setMetrics] = useState({
@@ -215,19 +252,97 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-[#09090b] text-zinc-900 dark:text-white flex flex-col md:flex-row transition-colors duration-300">
-      
-      {/* Sidebar Navigation */}
-      <aside className="w-full md:w-64 bg-zinc-100 dark:bg-zinc-950 border-r border-zinc-200 dark:border-white/5 flex flex-col p-6 gap-6 justify-between transition-colors duration-300">
+
+      {/* Mobile Header */}
+      <header className="md:hidden fixed top-0 inset-x-0 z-40 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md border-b border-zinc-200 dark:border-white/5 px-4 h-14 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-base">W</div>
+          <span className="font-extrabold text-lg">Work<span className="text-blue-500 font-medium">Fusion</span></span>
+        </div>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <button
+            onClick={() => setAccountSheetOpen(true)}
+            className="w-9 h-9 rounded-full bg-red-600 text-white flex items-center justify-center font-bold text-sm transition-all hover:opacity-80"
+            aria-label="Account menu"
+          >
+            {user ? user.fullName.charAt(0).toUpperCase() : "A"}
+          </button>
+        </div>
+      </header>
+
+      {/* Account Sheet — right slide-over */}
+      <AnimatePresence>
+        {accountSheetOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setAccountSheetOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 md:hidden"
+            />
+            <motion.aside
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 240 }}
+              className="fixed top-0 right-0 bottom-0 w-72 bg-white dark:bg-zinc-950 border-l border-zinc-200 dark:border-white/5 z-50 flex flex-col md:hidden shadow-2xl"
+            >
+              {/* Sheet header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-white/5">
+                <span className="font-bold text-xs text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Account</span>
+                <button
+                  onClick={() => setAccountSheetOpen(false)}
+                  className="p-2 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-xl transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* User card */}
+              {user && (
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-zinc-200 dark:border-white/5">
+                  <div className="w-11 h-11 rounded-full bg-red-600 text-white flex items-center justify-center font-bold text-base shrink-0">
+                    {user.fullName.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200 truncate">{user.fullName}</p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 truncate">{user.email}</p>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/20 font-semibold uppercase mt-1 inline-block">{user.role}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Logout */}
+              <div className="mt-auto px-3 pb-6 pt-4 border-t border-zinc-200 dark:border-white/5">
+                <button
+                  onClick={handleLogout}
+                  className="w-full px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium text-red-500 hover:bg-red-500/10 transition-all"
+                >
+                  <LogOut size={18} /> Logout
+                </button>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Sidebar Navigation — desktop only */}
+      <aside className="hidden md:flex w-64 shrink-0 bg-zinc-100 dark:bg-zinc-950 border-r border-zinc-200 dark:border-white/5 flex-col p-6 gap-6 justify-between transition-colors duration-300">
         <div className="flex flex-col gap-8">
           
           {/* Logo */}
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-lg">
-              W
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-lg">
+                W
+              </div>
+              <span className="font-extrabold text-xl">
+                Work<span className="text-blue-500 font-medium">Fusion</span>
+              </span>
             </div>
-            <span className="font-extrabold text-xl">
-              Work<span className="text-blue-500 font-medium">Fusion</span>
-            </span>
+            <ThemeToggle />
           </div>
 
           {/* User Role */}
@@ -264,24 +379,19 @@ export default function AdminDashboard() {
 
         </div>
 
-        {/* Theme Toggle & Logout */}
-        <div className="space-y-4">
-          <div className="flex justify-between items-center px-4">
-            <span className="text-xs text-zinc-500 dark:text-zinc-500 font-bold uppercase tracking-wide">Theme</span>
-            <ThemeToggle />
-          </div>
-          <button
-            onClick={handleLogout}
-            className="w-full px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium text-red-500 hover:bg-red-500/10 transition-all"
-          >
-            <LogOut size={18} /> Logout
-          </button>
-        </div>
+        {/* Logout */}
+        <button
+          onClick={handleLogout}
+          className="w-full px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium text-red-500 hover:bg-red-500/10 transition-all"
+        >
+          <LogOut size={18} /> Logout
+        </button>
       </aside>
 
       {/* Main Panel */}
-        <main className="flex-1 p-6 md:p-10 relative overflow-y-auto max-h-screen bg-zinc-50 dark:bg-zinc-950/50 transition-colors duration-300">
-        
+        <main className="flex-1 px-4 md:px-10 pt-14 md:pt-8 pb-24 md:pb-10 relative overflow-y-auto max-h-screen bg-zinc-50 dark:bg-zinc-950/50 transition-colors duration-300">
+
+
         {/* ================= TAB: ANALYTICS ================= */}
         {activeTab === "analytics" && (
           <div className="flex flex-col gap-8">
@@ -504,6 +614,17 @@ export default function AdminDashboard() {
         )}
 
       </main>
+
+      {/* Mobile Bottom Tab Bar */}
+      <BottomTabBar
+        tabs={[
+          { id: "analytics",  label: "Analytics",  icon: BarChart2 },
+          { id: "moderation", label: "Moderation", icon: ShieldAlert },
+          { id: "categories", label: "Categories", icon: Settings },
+        ]}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
 
     </div>
   );

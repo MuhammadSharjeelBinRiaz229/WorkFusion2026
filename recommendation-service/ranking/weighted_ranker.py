@@ -52,11 +52,12 @@ def rank_job_for_seeker(seeker: dict, job: dict) -> dict:
 
     # 4. Reviews & Ratings Match (10%)
     seeker_rating = seeker.get("rating", 5.0)
+    rating_val = float(seeker_rating)
     # Scale: 1.0 - 5.0 rating maps to 0.0 - 10.0 score
-    rating_sim = max((float(seeker_rating) - 1.0) / 4.0, 0.0)
+    rating_sim = max((rating_val - 1.0) / 4.0, 0.0)
     reviews_score = rating_sim * 10
-    if seeker_rating >= 4.0:
-        reasons.append(f"✓ Highly rated profile ({seeker_rating}/5.0)")
+    if rating_val >= 4.0:
+        reasons.append(f"✓ Highly rated profile ({rating_val:.1f}/5.0)")
 
     # 5. Category Match (10%)
     seeker_pref_cat = seeker.get("preferredCategory", "").lower()
