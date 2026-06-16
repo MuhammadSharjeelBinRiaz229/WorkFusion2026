@@ -168,17 +168,20 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Dot Grid Background */
 .dot-grid {
-  background-image: radial-gradient(rgba(24, 24, 27, 0.08) 1.5px, transparent 1.5px);
+  background-image: radial-gradient(rgba(9, 9, 11, 0.18) 1.5px, transparent 1.5px);
   background-size: 28px 28px;
 }
 .dark .dot-grid {
-  background-image: radial-gradient(rgba(244, 244, 245, 0.08) 1.5px, transparent 1.5px);
+  background-image: radial-gradient(rgba(244, 244, 245, 0.09) 1.5px, transparent 1.5px);
 }
 
-/* Mouse Spotlight Glow */
+/* Mouse Spotlight Glow — sky blue on both themes */
 .mouse-spotlight {
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.18) 0%, transparent 70%);
+  filter: blur(60px);
 }
 .dark .mouse-spotlight {
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.25) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.28) 0%, transparent 70%);
 }
