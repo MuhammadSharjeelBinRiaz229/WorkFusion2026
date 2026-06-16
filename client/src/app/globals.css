@@ -49,12 +49,17 @@
   --ring: #d4d4d8;
 }
 
-body {
+html {
   background-color: var(--background);
+  transition: background-color 0.3s ease;
+}
+
+body {
+  background-color: transparent;
   color: var(--foreground);
   font-family: 'Inter', -apple-system, sans-serif;
   overflow-x: hidden;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: color 0.3s ease;
 }
 
 h1, h2, h3, h4, h5, h6 {
