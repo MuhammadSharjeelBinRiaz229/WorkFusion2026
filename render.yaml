@@ -1,0 +1,36 @@
+services:
+  # 1. Python AI Recommendation Service
+  - type: web
+    name: workfusion-ai-service
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    rootDirectory: recommendation-service
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.12
+
+  # 2. Node.js Express Backend
+  - type: web
+    name: workfusion-backend-server
+    env: node
+    buildCommand: npm install
+    startCommand: npm run start --workspace=server
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false # You will enter your MongoDB Atlas URI in the Render Dashboard
+      - key: JWT_SECRET
+        generateValue: true # Render will automatically generate a secure random secret
+      - key: JWT_REFRESH_SECRET
+        generateValue: true # Render will automatically generate a secure random secret
+      - key: ACCESS_TOKEN_EXPIRY
+        value: 15m
+      - key: REFRESH_TOKEN_EXPIRY
+        value: 7d
+      - key: AI_SERVICE_URL
+        fromService:
+          name: workfusion-ai-service
+          type: web
+          property: host
