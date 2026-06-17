@@ -2,6 +2,7 @@ services:
   # 1. Python AI Recommendation Service
   - type: web
     name: workfusion-ai-service
+    plan: free
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
@@ -13,6 +14,7 @@ services:
   # 2. Node.js Express Backend
   - type: web
     name: workfusion-backend-server
+    plan: free
     env: node
     buildCommand: npm install
     startCommand: npm run start --workspace=server
