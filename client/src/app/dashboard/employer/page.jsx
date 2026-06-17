@@ -93,6 +93,15 @@ export default function EmployerDashboard() {
   // Proposal detail popup modal state
   const [selectedProposalForPopup, setSelectedProposalForPopup] = useState(null);
 
+  // Pipeline filter (stage tab)
+  const [pipelineFilter, setPipelineFilter] = useState("All");
+
+  // Interview scheduling modal
+  const [interviewModalApp, setInterviewModalApp] = useState(null);
+  const [interviewDate, setInterviewDate] = useState("");
+  const [interviewNote, setInterviewNote] = useState("");
+  const [interviewSubmitting, setInterviewSubmitting] = useState(false);
+
   // Job postings state
   const [postings, setPostings] = useState([]);
   const [postingsLoading, setPostingsLoading] = useState(false);
@@ -353,22 +362,39 @@ export default function EmployerDashboard() {
     }
   };
 
-  // Update application status
-  const handleStatusUpdate = async (appId, newStatus) => {
+  // Update application status (with optional metadata)
+  const handleStatusUpdate = async (appId, newStatus, meta = {}) => {
     try {
       const res = await apiRequest(`/applications/${appId}/status`, {
         method: "PATCH",
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: newStatus, ...meta }),
       });
       const result = await res.json();
       if (result.success) {
-        alert(`Status updated successfully to: ${newStatus}`);
         if (selectedJob) fetchApplicantsAndAI(selectedJob._id);
       } else {
         alert(result.message || "Failed to update status");
       }
     } catch (err) {
       console.error("Failed to update status", err);
+    }
+  };
+
+  // Schedule interview (opens modal, then submits on confirm)
+  const handleInterviewSchedule = async (e) => {
+    e.preventDefault();
+    if (!interviewModalApp) return;
+    setInterviewSubmitting(true);
+    try {
+      await handleStatusUpdate(interviewModalApp._id, "Interview", {
+        interviewDate: interviewDate || undefined,
+        interviewNote: interviewNote,
+      });
+      setInterviewModalApp(null);
+      setInterviewDate("");
+      setInterviewNote("");
+    } finally {
+      setInterviewSubmitting(false);
     }
   };
 
@@ -935,19 +961,21 @@ export default function EmployerDashboard() {
             {/* ═══════════════ TAB: APPLICANTS ═══════════════ */}
             {activeTab === "applicants" && (
               <motion.div key="applicants" variants={tabContent} initial="hidden" animate="visible" exit="exit" className="flex flex-col gap-6">
+
+                {/* Header row */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
-                    <h2 className="text-2xl md:text-3xl font-extrabold">Applicant Directory</h2>
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Review applicant profiles, AI scores, and manage interview statuses</p>
+                    <h2 className="text-2xl md:text-3xl font-extrabold">Hiring Pipeline</h2>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Manage every candidate from proposal to contract completion</p>
                   </div>
                   {postings.length > 0 && (
                     <div className="flex items-center gap-2">
-                      <label className="text-xs font-semibold text-zinc-500 uppercase">Active Posting:</label>
+                      <label className="text-xs font-semibold text-zinc-500 uppercase">Posting:</label>
                       <select
                         value={selectedJob?._id || ""}
                         onChange={(e) => {
                           const found = postings.find((j) => j._id === e.target.value);
-                          if (found) setSelectedJob(found);
+                          if (found) { setSelectedJob(found); setPipelineFilter("All"); }
                         }}
                         className="px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 text-xs outline-none font-semibold text-zinc-700 dark:text-zinc-300"
                       >
@@ -959,92 +987,171 @@ export default function EmployerDashboard() {
 
                 {selectedJob ? (
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Real Applicants List (2/3 cols) */}
-                    <div className="lg:col-span-2 space-y-4">
-                      <h3 className="font-bold text-base text-zinc-700 dark:text-zinc-300">Submitted Proposals ({applicants.length})</h3>
+
+                    {/* Pipeline (2/3 cols) */}
+                    <div className="lg:col-span-2 space-y-5">
+
+                      {/* Stage filter tabs */}
+                      {(() => {
+                        const stages = ["All","Applied","Reviewed","Interview","Accepted","Hired","Completed","Rejected"];
+                        const counts = stages.reduce((acc, s) => {
+                          acc[s] = s === "All" ? applicants.length : applicants.filter(a => a.status === s).length;
+                          return acc;
+                        }, {});
+                        return (
+                          <div className="flex flex-wrap gap-1.5">
+                            {stages.map((s) => (
+                              <button
+                                key={s}
+                                onClick={() => setPipelineFilter(s)}
+                                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+                                  pipelineFilter === s
+                                    ? "bg-zinc-900 dark:bg-white text-white dark:text-black border-transparent"
+                                    : "bg-transparent text-zinc-500 border-zinc-200 dark:border-white/10 hover:border-zinc-400 dark:hover:border-white/20"
+                                }`}
+                              >
+                                {s} {counts[s] > 0 && <span className="ml-1 opacity-70">{counts[s]}</span>}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
+
                       {appLoading ? (
                         <div className="space-y-4">
                           {[...Array(3)].map((_, i) => (
-                            <div key={i} className="h-32 rounded-2xl bg-zinc-100 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 animate-pulse" />
+                            <div key={i} className="h-36 rounded-2xl bg-zinc-100 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 animate-pulse" />
                           ))}
                         </div>
-                      ) : applicants.length === 0 ? (
-                        <div className="p-8 text-center rounded-2xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/5 text-zinc-500 text-sm flex flex-col items-center gap-2">
-                          <Users size={32} className="text-zinc-300 dark:text-zinc-700" />
-                          No applications submitted yet for this posting.
-                        </div>
-                      ) : (
-                        <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="space-y-4">
-                          {applicants.map((app, idx) => (
-                            <motion.div
-                              key={app._id}
-                              variants={cardItem}
-                              whileHover={{ y: -2 }}
-                              onClick={() => setSelectedProposalForPopup(app)}
-                              className="p-5 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/5 space-y-4 cursor-pointer transition-colors hover:border-zinc-300 dark:hover:border-white/10"
-                            >
-                              <div className="flex flex-col sm:flex-row justify-between gap-3 border-b border-zinc-200 dark:border-white/5 pb-4">
-                                <div>
-                                  <h4 className="font-bold text-base text-zinc-800 dark:text-zinc-200">{app.seekerId.fullName}</h4>
-                                  <p className="text-xs text-zinc-500 mt-0.5">
-                                    {app.seekerId.city} · Bid: PKR {app.expectedSalary.toLocaleString()}{selectedJob?.workType === "Hourly" ? "/hr" : ""} · {app.estimatedTime || "N/A"}
-                                  </p>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2 self-start">
-                                  <span className="px-3 py-1 rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20 text-xs font-bold">{app.matchScore}% Match</span>
-                                  <span className="px-2.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 text-[10px] font-bold uppercase">{app.status}</span>
-                                </div>
-                              </div>
+                      ) : (() => {
+                        const filtered = pipelineFilter === "All" ? applicants : applicants.filter(a => a.status === pipelineFilter);
+                        if (filtered.length === 0) return (
+                          <div className="p-10 text-center rounded-2xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/5 text-zinc-500 text-sm flex flex-col items-center gap-2">
+                            <Users size={32} className="text-zinc-300 dark:text-zinc-700" />
+                            {pipelineFilter === "All" ? "No applications submitted yet for this posting." : `No candidates in the "${pipelineFilter}" stage.`}
+                          </div>
+                        );
+                        return (
+                          <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="space-y-4">
+                            {filtered.map((app) => {
+                              const statusColors = {
+                                Applied:   "bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
+                                Reviewed:  "bg-indigo-500/15 text-indigo-400 border border-indigo-500/20",
+                                Interview: "bg-amber-500/15 text-amber-400 border border-amber-500/20",
+                                Accepted:  "bg-green-500/15 text-green-400 border border-green-500/20",
+                                Hired:     "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30",
+                                Completed: "bg-blue-500/15 text-blue-400 border border-blue-500/20",
+                                Rejected:  "bg-red-500/10 text-red-400 border border-red-500/20",
+                              };
+                              return (
+                                <motion.div
+                                  key={app._id}
+                                  variants={cardItem}
+                                  whileHover={{ y: -2 }}
+                                  onClick={() => setSelectedProposalForPopup(app)}
+                                  className="p-5 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/5 space-y-4 cursor-pointer transition-all hover:shadow-md hover:border-zinc-300 dark:hover:border-white/10"
+                                >
+                                  {/* Top row */}
+                                  <div className="flex flex-col sm:flex-row justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center font-bold text-sm shrink-0 text-zinc-600 dark:text-zinc-300">
+                                        {app.seekerId.fullName.charAt(0)}
+                                      </div>
+                                      <div>
+                                        <h4 className="font-bold text-base text-zinc-800 dark:text-zinc-200 leading-tight">{app.seekerId.fullName}</h4>
+                                        <p className="text-xs text-zinc-500 mt-0.5">{app.seekerId.city} · {app.seekerId.experience || 0} yrs exp</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2 self-start">
+                                      <span className="px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20 text-[10px] font-bold">{app.matchScore}% Match</span>
+                                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${statusColors[app.status] || "bg-zinc-200 text-zinc-500"}`}>{app.status}</span>
+                                    </div>
+                                  </div>
 
-                              <div className="space-y-1">
-                                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Proposal (Click for full details)</label>
-                                <p className="text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed line-clamp-2">{app.proposal}</p>
-                              </div>
+                                  {/* Bid + time row */}
+                                  <div className="flex flex-wrap gap-4 text-xs border-t border-zinc-100 dark:border-white/5 pt-3">
+                                    <span className="text-zinc-500">Bid: <strong className="text-zinc-800 dark:text-zinc-200">PKR {app.expectedSalary.toLocaleString()}{selectedJob?.workType === "Hourly" ? "/hr" : ""}</strong></span>
+                                    <span className="text-zinc-500">Timeline: <strong className="text-zinc-800 dark:text-zinc-200">{app.estimatedTime || "N/A"}</strong></span>
+                                    <span className="text-zinc-500">Applied: <strong className="text-zinc-800 dark:text-zinc-200">{new Date(app.createdAt).toLocaleDateString()}</strong></span>
+                                    <div className="flex items-center gap-1 text-amber-400">
+                                      <Star size={11} fill="currentColor" />
+                                      <span className="font-bold">{app.seekerId.rating || 5.0}</span>
+                                      <span className="text-zinc-500">({app.seekerId.reviewCount || 0})</span>
+                                    </div>
+                                  </div>
 
-                              <div className="flex flex-wrap items-center gap-4 text-xs">
-                                <div className="flex items-center gap-1 text-amber-400">
-                                  <Star size={13} fill="currentColor" className="shrink-0" />
-                                  <span className="font-bold">{app.seekerId.rating || 5.0}</span>
-                                  <span className="text-zinc-500">({app.seekerId.reviewCount || 0} reviews)</span>
-                                </div>
-                                <div className="text-zinc-500">
-                                  Similar Jobs: <strong className="text-zinc-700 dark:text-zinc-300">{app.completedSimilarJobsCount || 0}</strong>
-                                </div>
-                              </div>
+                                  {/* Proposal snippet */}
+                                  <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed italic">"{app.proposal}"</p>
 
-                              {/* Action Bar */}
-                              <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-zinc-200 dark:border-white/5 justify-end" onClick={(e) => e.stopPropagation()}>
-                                {app.status === "Applied" && (
-                                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleStatusUpdate(app._id, "Interview")}
-                                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all">Move to Interview</motion.button>
-                                )}
-                                {app.status === "Interview" && (
-                                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleStatusUpdate(app._id, "Accepted")}
-                                    className="px-3.5 py-1.5 bg-green-600 hover:bg-green-700 text-white font-bold text-xs rounded-xl transition-all">Offer Accept</motion.button>
-                                )}
-                                {app.status === "Accepted" && (
-                                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleStatusUpdate(app._id, "Hired")}
-                                    className="px-3.5 py-1.5 bg-green-500 text-black font-bold text-xs rounded-xl transition-all">Hire / Start Contract</motion.button>
-                                )}
-                                {app.status === "Hired" && (
-                                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleStatusUpdate(app._id, "Completed")}
-                                    className="px-3.5 py-1.5 bg-white dark:bg-zinc-100 text-black font-bold text-xs rounded-xl transition-all">Mark Completed</motion.button>
-                                )}
-                                {app.status === "Completed" && (
-                                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => setReviewingApp(app)}
-                                    className="px-3.5 py-1.5 bg-amber-500 text-black font-bold text-xs rounded-xl transition-all flex items-center gap-1.5">
-                                    <Star size={11} /> Leave Review
-                                  </motion.button>
-                                )}
-                                {app.status !== "Completed" && app.status !== "Rejected" && (
-                                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleStatusUpdate(app._id, "Rejected")}
-                                    className="px-3.5 py-1.5 bg-zinc-100 dark:bg-zinc-900 hover:bg-red-500/10 text-zinc-500 hover:text-red-400 font-bold text-xs rounded-xl border border-zinc-200 dark:border-white/5 transition-all">Reject</motion.button>
-                                )}
-                              </div>
-                            </motion.div>
-                          ))}
-                        </motion.div>
-                      )}
+                                  {/* Interview date if set */}
+                                  {app.interviewDate && (
+                                    <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/5 border border-amber-500/15 rounded-lg px-3 py-2">
+                                      <Clock size={12} />
+                                      <span>Interview: <strong>{new Date(app.interviewDate).toLocaleString()}</strong></span>
+                                      {app.interviewNote && <span className="text-zinc-500 ml-1">· {app.interviewNote}</span>}
+                                    </div>
+                                  )}
+
+                                  {/* Offer note if set */}
+                                  {app.offerNote && app.status === "Accepted" && (
+                                    <div className="text-xs text-green-400 bg-green-500/5 border border-green-500/15 rounded-lg px-3 py-2">
+                                      Offer note: {app.offerNote}
+                                    </div>
+                                  )}
+
+                                  {/* Action Bar */}
+                                  <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-zinc-100 dark:border-white/5 justify-end" onClick={(e) => e.stopPropagation()}>
+                                    {(app.status === "Applied" || app.status === "Pending") && (
+                                      <motion.button whileTap={{ scale: 0.95 }}
+                                        onClick={() => handleStatusUpdate(app._id, "Reviewed")}
+                                        className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 font-bold text-xs rounded-xl border border-indigo-500/20 transition-all">
+                                        Mark Reviewed
+                                      </motion.button>
+                                    )}
+                                    {(app.status === "Applied" || app.status === "Pending" || app.status === "Reviewed") && (
+                                      <motion.button whileTap={{ scale: 0.95 }}
+                                        onClick={() => { setInterviewModalApp(app); setInterviewDate(""); setInterviewNote(""); }}
+                                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-1.5">
+                                        <Clock size={11} /> Schedule Interview
+                                      </motion.button>
+                                    )}
+                                    {app.status === "Interview" && (
+                                      <motion.button whileTap={{ scale: 0.95 }}
+                                        onClick={() => handleStatusUpdate(app._id, "Accepted")}
+                                        className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-bold text-xs rounded-xl transition-all">
+                                        Send Offer
+                                      </motion.button>
+                                    )}
+                                    {app.status === "Accepted" && (
+                                      <span className="text-xs text-zinc-400 italic">Awaiting candidate response…</span>
+                                    )}
+                                    {app.status === "Hired" && (
+                                      <motion.button whileTap={{ scale: 0.95 }}
+                                        onClick={() => handleStatusUpdate(app._id, "Completed")}
+                                        className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-1.5">
+                                        <CheckCircle size={11} /> Mark Complete
+                                      </motion.button>
+                                    )}
+                                    {app.status === "Completed" && (
+                                      <motion.button whileTap={{ scale: 0.95 }} onClick={() => setReviewingApp(app)}
+                                        className="px-3 py-1.5 bg-amber-500 text-black font-bold text-xs rounded-xl transition-all flex items-center gap-1.5">
+                                        <Star size={11} /> Leave Review
+                                      </motion.button>
+                                    )}
+                                    {app.status !== "Completed" && app.status !== "Rejected" && (
+                                      <motion.button whileTap={{ scale: 0.95 }}
+                                        onClick={() => handleStatusUpdate(app._id, "Rejected")}
+                                        className="px-3 py-1.5 bg-transparent hover:bg-red-500/10 text-zinc-400 hover:text-red-400 font-bold text-xs rounded-xl border border-zinc-200 dark:border-white/5 transition-all">
+                                        Reject
+                                      </motion.button>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              );
+                            })}
+                          </motion.div>
+                        );
+                      })()}
                     </div>
 
                     {/* AI Candidate Matching Recommendations (1/3 col) */}
@@ -1053,7 +1160,7 @@ export default function EmployerDashboard() {
                         <motion.div animate={{ rotate: [0, 10, -10, 0] }} transition={{ repeat: Infinity, duration: 3, repeatDelay: 2 }}>
                           <Sparkles className="text-amber-400 shrink-0" size={17} />
                         </motion.div>
-                        <h3 className="font-bold text-base text-zinc-700 dark:text-zinc-300">AI Matching Recommendations</h3>
+                        <h3 className="font-bold text-base text-zinc-700 dark:text-zinc-300">AI Talent Suggestions</h3>
                       </div>
 
                       {aiLoading ? (
@@ -1075,40 +1182,30 @@ export default function EmployerDashboard() {
                                 <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20 text-[10px] font-bold">{rec.score}% Match</span>
                               </div>
                               <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">{rec.candidate.bio}</p>
-
-                              {/* Skill Gap Analysis */}
                               {rec.missingSkills && rec.missingSkills.length > 0 && (
                                 <div className="p-2.5 rounded-lg bg-red-500/5 border border-red-500/15 text-[10px] space-y-1">
-                                  <span className="font-bold text-red-400 uppercase block tracking-wide flex items-center gap-1">
-                                    <AlertCircle size={10} /> Missing Core Skills:
-                                  </span>
+                                  <span className="font-bold text-red-400 uppercase block tracking-wide flex items-center gap-1"><AlertCircle size={10} /> Missing Skills:</span>
                                   <div className="flex flex-wrap gap-1">
                                     {rec.missingSkills.map((ms, msi) => (
-                                      <span key={msi} className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/15 text-[9px] font-semibold">
-                                        {ms}
-                                      </span>
+                                      <span key={msi} className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/15 text-[9px] font-semibold">{ms}</span>
                                     ))}
                                   </div>
                                 </div>
                               )}
-
                               <div className="flex flex-wrap gap-1">
                                 {rec.reason.map((res, rIdx) => (
-                                  <span key={rIdx} className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/5 text-[9px] text-zinc-500">
-                                    ✓ {res}
-                                  </span>
+                                  <span key={rIdx} className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/5 text-[9px] text-zinc-500">✓ {res}</span>
                                 ))}
                               </div>
                             </motion.div>
                           ))}
-
                           {candidateRecommendations.length > 5 && (
                             <div className="flex items-center justify-between pt-3 border-t border-zinc-200 dark:border-white/5">
                               <button disabled={aiPage <= 1} onClick={() => setAiPage((p) => Math.max(1, p - 1))}
-                                className="px-2.5 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-300 disabled:opacity-30 disabled:pointer-events-none text-xs font-semibold transition-colors">Prev</button>
-                              <span className="text-[10px] text-zinc-500">Page {aiPage} of {Math.ceil(candidateRecommendations.length / 5)}</span>
+                                className="px-2.5 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-300 disabled:opacity-30 disabled:pointer-events-none text-xs font-semibold">Prev</button>
+                              <span className="text-[10px] text-zinc-500">Page {aiPage} / {Math.ceil(candidateRecommendations.length / 5)}</span>
                               <button disabled={aiPage >= Math.ceil(candidateRecommendations.length / 5)} onClick={() => setAiPage((p) => p + 1)}
-                                className="px-2.5 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-300 disabled:opacity-30 disabled:pointer-events-none text-xs font-semibold transition-colors">Next</button>
+                                className="px-2.5 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-300 disabled:opacity-30 disabled:pointer-events-none text-xs font-semibold">Next</button>
                             </div>
                           )}
                         </motion.div>
@@ -1546,6 +1643,59 @@ export default function EmployerDashboard() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
       />
+
+      {/* ═══════════════ MODAL: SCHEDULE INTERVIEW ═══════════════ */}
+      <AnimatePresence>
+        {interviewModalApp && (
+          <motion.div key="interview-overlay" variants={overlayAnim} initial="hidden" animate="visible" exit="exit"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div variants={modalSpring} initial="hidden" animate="visible" exit="exit"
+              className="w-full max-w-md bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 p-6 md:p-8 rounded-2xl space-y-5 relative">
+              <div>
+                <h3 className="text-xl font-bold tracking-tight">Schedule Interview</h3>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                  Candidate: <strong className="text-zinc-700 dark:text-zinc-300">{interviewModalApp.seekerId.fullName}</strong>
+                </p>
+              </div>
+              <form onSubmit={handleInterviewSchedule} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Interview Date &amp; Time <span className="text-zinc-400 normal-case">(optional)</span></label>
+                  <input
+                    type="datetime-local"
+                    value={interviewDate}
+                    onChange={(e) => setInterviewDate(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-zinc-200 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm outline-none text-zinc-800 dark:text-zinc-200"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Message to Candidate <span className="text-zinc-400 normal-case">(optional)</span></label>
+                  <textarea
+                    value={interviewNote}
+                    onChange={(e) => setInterviewNote(e.target.value)}
+                    rows={3}
+                    placeholder="e.g. We'd love to discuss your experience with React. Join us via Google Meet…"
+                    className="w-full px-4 py-3 rounded-xl bg-zinc-200 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm outline-none resize-none text-zinc-800 dark:text-zinc-200 placeholder-zinc-400"
+                  />
+                </div>
+                <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/15 text-xs text-blue-400">
+                  Chat will be unlocked automatically so you can message the candidate directly.
+                </div>
+                <div className="flex gap-3 pt-1">
+                  <motion.button whileTap={{ scale: 0.96 }} type="button"
+                    onClick={() => setInterviewModalApp(null)}
+                    className="flex-1 px-5 py-2.5 rounded-xl border border-zinc-200 dark:border-white/10 text-sm font-semibold text-zinc-500 hover:bg-zinc-200 dark:hover:bg-white/5 transition-all">
+                    Cancel
+                  </motion.button>
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }} type="submit" disabled={interviewSubmitting}
+                    className="flex-1 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                    <Clock size={14} /> {interviewSubmitting ? "Scheduling…" : "Confirm Interview"}
+                  </motion.button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ═══════════════ MODAL: LEAVE REVIEW ═══════════════ */}
       <AnimatePresence>

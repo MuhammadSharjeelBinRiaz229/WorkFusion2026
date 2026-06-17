@@ -33,9 +33,11 @@ export class ApplicationController {
       const userId = req.user?.id;
       const role = req.user?.role;
       if (!userId || !role) throw new Error("Unauthorized");
-      
-      const { status } = req.body;
-      const app = await this.appService.updateStatus(req.params.id, userId, role, status);
+
+      const { status, interviewDate, interviewNote, offerNote, note } = req.body;
+      const meta = { interviewDate, interviewNote, offerNote, note };
+
+      const app = await this.appService.updateStatus(req.params.id, userId, role, status, meta);
 
       await ActivityLog.create({
         userId: new mongoose.Types.ObjectId(userId),
@@ -47,6 +49,59 @@ export class ApplicationController {
       return res.status(200).json({
         success: true,
         message: "Application status updated successfully",
+        data: app,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  withdraw = async (req, res, next) => {
+    try {
+      const seekerId = req.user?.id;
+      if (!seekerId) throw new Error("Unauthorized");
+
+      const app = await this.appService.withdrawApplication(req.params.id, seekerId);
+
+      await ActivityLog.create({
+        userId: new mongoose.Types.ObjectId(seekerId),
+        action: "Withdraw Application",
+        entity: "Application",
+        entityId: app._id,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Application withdrawn successfully",
+        data: app,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  offerResponse = async (req, res, next) => {
+    try {
+      const seekerId = req.user?.id;
+      if (!seekerId) throw new Error("Unauthorized");
+
+      const { accept } = req.body;
+      if (typeof accept !== "boolean") {
+        return res.status(400).json({ success: false, message: '"accept" must be a boolean' });
+      }
+
+      const app = await this.appService.respondToOffer(req.params.id, seekerId, accept);
+
+      await ActivityLog.create({
+        userId: new mongoose.Types.ObjectId(seekerId),
+        action: accept ? "Accept Job Offer" : "Decline Job Offer",
+        entity: "Application",
+        entityId: app._id,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: accept ? "Offer accepted. Your contract is now active!" : "Offer declined.",
         data: app,
       });
     } catch (error) {
@@ -67,9 +122,7 @@ export class ApplicationController {
         limit: Number(limit),
       };
 
-      if (status) {
-        filters.status = status;
-      }
+      if (status) filters.status = status;
 
       if (role === "Service Seeker") {
         filters.seekerId = userId;

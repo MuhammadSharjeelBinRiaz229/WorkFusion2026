@@ -7,6 +7,25 @@ import { Application } from "../models/Application.js";
 import { logger } from "../utils/logger.js";
 import mongoose from "mongoose";
 
+// Valid employer-driven transitions
+const EMPLOYER_TRANSITIONS = {
+  [ApplicationStatus.APPLIED]:   [ApplicationStatus.REVIEWED, ApplicationStatus.INTERVIEW, ApplicationStatus.REJECTED],
+  [ApplicationStatus.PENDING]:   [ApplicationStatus.REVIEWED, ApplicationStatus.INTERVIEW, ApplicationStatus.REJECTED],
+  [ApplicationStatus.REVIEWED]:  [ApplicationStatus.INTERVIEW, ApplicationStatus.REJECTED],
+  [ApplicationStatus.INTERVIEW]: [ApplicationStatus.ACCEPTED, ApplicationStatus.REJECTED],
+  [ApplicationStatus.ACCEPTED]:  [ApplicationStatus.HIRED, ApplicationStatus.REJECTED],
+  [ApplicationStatus.HIRED]:     [ApplicationStatus.COMPLETED],
+  [ApplicationStatus.COMPLETED]: [],
+  [ApplicationStatus.REJECTED]:  [],
+};
+
+// Statuses seeker can withdraw from (before the interview stage)
+const WITHDRAWABLE_STATUSES = new Set([
+  ApplicationStatus.APPLIED,
+  ApplicationStatus.PENDING,
+  ApplicationStatus.REVIEWED,
+]);
+
 export class ApplicationService {
   appRepo = new ApplicationRepository();
   jobRepo = new JobRepository();
@@ -31,6 +50,7 @@ export class ApplicationService {
       ...input,
       seekerId,
       status: ApplicationStatus.APPLIED,
+      statusHistory: [{ status: ApplicationStatus.APPLIED, changedBy: new mongoose.Types.ObjectId(seekerId), note: "Application submitted" }],
     };
     const app = await this.appRepo.create(appData);
     logger.info(`Application submitted: Seeker ${seekerId} applied to Job ${input.jobId}`);
@@ -48,7 +68,7 @@ export class ApplicationService {
     return app;
   }
 
-  async updateStatus(applicationId, userId, role, newStatus) {
+  async updateStatus(applicationId, userId, role, newStatus, meta = {}) {
     const app = await this.appRepo.findById(applicationId);
     if (!app) {
       const error = new Error("Application not found");
@@ -65,7 +85,7 @@ export class ApplicationService {
     }
 
     const jobOwnerId = job.employerId._id ? job.employerId._id.toString() : job.employerId.toString();
-    
+
     if (jobOwnerId !== userId && role !== "Admin") {
       const error = new Error("Unauthorized: Only the employer who posted the job can update candidate application states.");
       error.status = 403;
@@ -73,21 +93,51 @@ export class ApplicationService {
     }
 
     const oldStatus = app.status;
-    app.status = newStatus;
-    const updatedApp = await this.appRepo.update(applicationId, { status: newStatus });
-    if (!updatedApp) {
-      throw new Error("Failed to update application status");
+
+    // Validate transition via state machine
+    const allowedNext = EMPLOYER_TRANSITIONS[oldStatus] || [];
+    if (!allowedNext.includes(newStatus)) {
+      const error = new Error(
+        `Invalid transition: cannot move from "${oldStatus}" to "${newStatus}". Allowed next statuses: ${allowedNext.join(", ") || "none"}.`
+      );
+      error.status = 422;
+      throw error;
     }
+
+    const historyEntry = {
+      status: newStatus,
+      changedBy: new mongoose.Types.ObjectId(userId),
+      note: meta.note || "",
+      changedAt: new Date(),
+    };
+
+    const updateData = {
+      status: newStatus,
+      $push: { statusHistory: historyEntry },
+    };
+
+    if (newStatus === ApplicationStatus.INTERVIEW) {
+      if (meta.interviewDate) updateData.interviewDate = new Date(meta.interviewDate);
+      if (meta.interviewNote !== undefined) updateData.interviewNote = meta.interviewNote;
+    }
+    if (newStatus === ApplicationStatus.ACCEPTED && meta.offerNote !== undefined) {
+      updateData.offerNote = meta.offerNote;
+    }
+
+    const updatedApp = await Application.findByIdAndUpdate(
+      applicationId,
+      updateData,
+      { new: true }
+    ).populate("jobId").populate("seekerId", "fullName email");
+
+    if (!updatedApp) throw new Error("Failed to update application status");
 
     logger.info(`Application ${applicationId} status transitioned from ${oldStatus} to ${newStatus}`);
 
+    // Auto-create chat channel on Interview
     if (newStatus === ApplicationStatus.INTERVIEW) {
       const seekerIdStr = app.seekerId._id ? app.seekerId._id.toString() : app.seekerId.toString();
-      const existingChat = await this.chatRepo.findChatBetweenUsers(
-        job._id.toString(),
-        seekerIdStr
-      );
-
+      const existingChat = await this.chatRepo.findChatBetweenUsers(job._id.toString(), seekerIdStr);
       if (!existingChat) {
         await this.chatRepo.createChat({
           jobId: job._id,
@@ -99,26 +149,129 @@ export class ApplicationService {
       }
     }
 
-    let notifTitle = "Application Updated";
-    let notifBody = `Your application for "${job.title}" has been updated to: ${newStatus}.`;
+    // Notifications
+    const notifMap = {
+      [ApplicationStatus.REVIEWED]:  { title: "Application Under Review",       body: `Your application for "${job.title}" is being reviewed by the employer.`,      type: NotificationType.APPLICATION },
+      [ApplicationStatus.INTERVIEW]: { title: "Interview Scheduled",             body: `Great news! You've been invited to interview for "${job.title}". Chat is now unlocked.`, type: NotificationType.INTERVIEW },
+      [ApplicationStatus.ACCEPTED]:  { title: "Offer Extended 🎉",              body: `The employer has extended a job offer for "${job.title}". Please respond in your Applications tab.`, type: NotificationType.ACCEPTED },
+      [ApplicationStatus.HIRED]:     { title: "Contract Started",                body: `Your contract for "${job.title}" is now active. Deliver great work!`,         type: NotificationType.SYSTEM },
+      [ApplicationStatus.COMPLETED]: { title: "Contract Completed",              body: `The contract for "${job.title}" has been marked complete. Please leave a review!`, type: NotificationType.SYSTEM },
+      [ApplicationStatus.REJECTED]:  { title: "Application Not Selected",        body: `We regret to inform you that your application for "${job.title}" was not selected this time.`, type: NotificationType.SYSTEM },
+    };
 
-    if (newStatus === ApplicationStatus.INTERVIEW) {
-      notifTitle = "Interview Scheduled & Chat Enabled";
-      notifBody = `The employer for "${job.title}" has scheduled an interview. Direct messaging is now enabled!`;
-    } else if (newStatus === ApplicationStatus.ACCEPTED) {
-      notifTitle = "Application Accepted";
-      notifBody = `Congratulations! Your application for "${job.title}" has been accepted.`;
-    } else if (newStatus === ApplicationStatus.REJECTED) {
-      notifTitle = "Application Rejected";
-      notifBody = `We regret to inform you that your application for "${job.title}" was not selected.`;
+    const notif = notifMap[newStatus];
+    if (notif) {
+      await Notification.create({ userId: app.seekerId, ...notif });
     }
 
-    await Notification.create({
-      userId: app.seekerId,
-      title: notifTitle,
-      body: notifBody,
-      type: newStatus === ApplicationStatus.INTERVIEW ? NotificationType.INTERVIEW : NotificationType.SYSTEM,
-    });
+    return updatedApp;
+  }
+
+  async withdrawApplication(applicationId, seekerId) {
+    const app = await this.appRepo.findById(applicationId);
+    if (!app) {
+      const error = new Error("Application not found");
+      error.status = 404;
+      throw error;
+    }
+
+    const appSeekerStr = app.seekerId._id ? app.seekerId._id.toString() : app.seekerId.toString();
+    if (appSeekerStr !== seekerId) {
+      const error = new Error("Unauthorized: This is not your application");
+      error.status = 403;
+      throw error;
+    }
+
+    if (!WITHDRAWABLE_STATUSES.has(app.status)) {
+      const error = new Error(`Cannot withdraw an application with status "${app.status}". Withdrawal is only allowed when status is Applied or Reviewed.`);
+      error.status = 422;
+      throw error;
+    }
+
+    const jobIdStr = app.jobId._id ? app.jobId._id.toString() : app.jobId.toString();
+    const job = await this.jobRepo.findById(jobIdStr);
+
+    const historyEntry = {
+      status: ApplicationStatus.REJECTED,
+      changedBy: new mongoose.Types.ObjectId(seekerId),
+      note: "Withdrawn by applicant",
+      changedAt: new Date(),
+    };
+
+    const updatedApp = await Application.findByIdAndUpdate(
+      applicationId,
+      { status: ApplicationStatus.REJECTED, $push: { statusHistory: historyEntry } },
+      { new: true }
+    );
+
+    logger.info(`Application ${applicationId} withdrawn by seeker ${seekerId}`);
+
+    if (job) {
+      const jobOwnerId = job.employerId._id ? job.employerId._id.toString() : job.employerId.toString();
+      await Notification.create({
+        userId: jobOwnerId,
+        title: "Applicant Withdrew",
+        body: `A candidate has withdrawn their application for "${job.title}".`,
+        type: NotificationType.APPLICATION,
+      });
+    }
+
+    return updatedApp;
+  }
+
+  async respondToOffer(applicationId, seekerId, accept) {
+    const app = await this.appRepo.findById(applicationId);
+    if (!app) {
+      const error = new Error("Application not found");
+      error.status = 404;
+      throw error;
+    }
+
+    const appSeekerStr = app.seekerId._id ? app.seekerId._id.toString() : app.seekerId.toString();
+    if (appSeekerStr !== seekerId) {
+      const error = new Error("Unauthorized: This is not your application");
+      error.status = 403;
+      throw error;
+    }
+
+    if (app.status !== ApplicationStatus.ACCEPTED) {
+      const error = new Error("You can only respond to an offer when the status is 'Accepted'.");
+      error.status = 422;
+      throw error;
+    }
+
+    const newStatus = accept ? ApplicationStatus.HIRED : ApplicationStatus.REJECTED;
+    const noteText = accept ? "Offer accepted by applicant" : "Offer declined by applicant";
+
+    const historyEntry = {
+      status: newStatus,
+      changedBy: new mongoose.Types.ObjectId(seekerId),
+      note: noteText,
+      changedAt: new Date(),
+    };
+
+    const updatedApp = await Application.findByIdAndUpdate(
+      applicationId,
+      { status: newStatus, $push: { statusHistory: historyEntry } },
+      { new: true }
+    );
+
+    const jobIdStr = app.jobId._id ? app.jobId._id.toString() : app.jobId.toString();
+    const job = await this.jobRepo.findById(jobIdStr);
+    const jobOwnerId = job?.employerId?._id?.toString() || job?.employerId?.toString();
+
+    logger.info(`Application ${applicationId} offer ${accept ? "accepted" : "declined"} by seeker ${seekerId}`);
+
+    if (job && jobOwnerId) {
+      await Notification.create({
+        userId: jobOwnerId,
+        title: accept ? "Offer Accepted 🎉" : "Offer Declined",
+        body: accept
+          ? `The candidate has accepted your offer for "${job.title}". The contract is now active!`
+          : `The candidate has declined your offer for "${job.title}".`,
+        type: accept ? NotificationType.ACCEPTED : NotificationType.SYSTEM,
+      });
+    }
 
     return updatedApp;
   }

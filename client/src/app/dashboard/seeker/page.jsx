@@ -100,6 +100,12 @@ export default function SeekerDashboard() {
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [editingPortfolioIdx, setEditingPortfolioIdx] = useState(null);
 
+  // Employer review modal (seeker leaves review for employer after completion)
+  const [empReviewApp, setEmpReviewApp] = useState(null);
+  const [empRatingVal, setEmpRatingVal] = useState(5);
+  const [empCommentVal, setEmpCommentVal] = useState("");
+  const [empReviewLoading, setEmpReviewLoading] = useState(false);
+
   // Security password update states
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -639,6 +645,71 @@ export default function SeekerDashboard() {
     setVisitedJobs(updatedVisited);
     localStorage.setItem("visitedJobs", JSON.stringify(updatedVisited));
     router.push(`/jobs/${jobId}`);
+  };
+
+  const handleWithdrawApplication = async (appId) => {
+    if (!confirm("Are you sure you want to withdraw this application? This cannot be undone.")) return;
+    try {
+      const res = await apiRequest(`/applications/${appId}/withdraw`, { method: "PATCH" });
+      const result = await res.json();
+      if (result.success) {
+        setApplications((prev) => prev.map((a) => a._id === appId ? { ...a, status: "Rejected" } : a));
+      } else {
+        alert(result.message || "Could not withdraw application.");
+      }
+    } catch {
+      alert("Failed to withdraw. Please try again.");
+    }
+  };
+
+  const handleOfferResponse = async (appId, accept) => {
+    const msg = accept
+      ? "Accept this offer? Your contract will become active immediately."
+      : "Decline this offer? The application will be closed.";
+    if (!confirm(msg)) return;
+    try {
+      const res = await apiRequest(`/applications/${appId}/offer-response`, {
+        method: "PATCH",
+        body: JSON.stringify({ accept }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        setApplications((prev) => prev.map((a) => a._id === appId ? { ...a, status: accept ? "Hired" : "Rejected" } : a));
+      } else {
+        alert(result.message || "Could not process your response.");
+      }
+    } catch {
+      alert("Failed. Please try again.");
+    }
+  };
+
+  const handleEmployerReviewSubmit = async (e) => {
+    e.preventDefault();
+    if (!empReviewApp) return;
+    setEmpReviewLoading(true);
+    try {
+      const res = await apiRequest("/reviews", {
+        method: "POST",
+        body: JSON.stringify({
+          jobId: empReviewApp.jobId._id,
+          receiverId: empReviewApp.jobId.employerId,
+          rating: Number(empRatingVal),
+          comment: empCommentVal,
+        }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        setEmpReviewApp(null);
+        setEmpCommentVal("");
+        alert("Review submitted successfully!");
+      } else {
+        alert(result.message || "Failed to submit review.");
+      }
+    } catch {
+      alert("Failed to submit review.");
+    } finally {
+      setEmpReviewLoading(false);
+    }
   };
 
   const handleLogout = () => {
@@ -1181,72 +1252,137 @@ export default function SeekerDashboard() {
         {activeTab === "applications" && (
           <div className="flex flex-col gap-6">
             <div>
-              <h2 className="text-3xl font-extrabold">My Submitted Applications</h2>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Review status progression and interview calls</p>
+              <h2 className="text-3xl font-extrabold">My Applications</h2>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Track every proposal from submission to contract completion</p>
             </div>
 
             {appLoading ? (
-              <span className="text-sm text-zinc-500">Loading pipelines...</span>
+              <div className="space-y-4">
+                {[1,2,3].map((i) => <div key={i} className="h-36 rounded-2xl bg-zinc-100 dark:bg-zinc-900 animate-pulse border border-zinc-200 dark:border-white/5" />)}
+              </div>
             ) : applications.length === 0 ? (
-              <div className="p-8 text-center rounded-xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/5 text-zinc-500 text-sm">
-                You haven't submitted any job applications yet.
+              <div className="p-10 text-center rounded-xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/5 text-zinc-500 text-sm">
+                You haven't submitted any applications yet. Browse jobs to get started.
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
-                {applications.map((app) => (
-                  <div key={app._id} className="p-5 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div className="space-y-1">
-                      <h4 className="font-bold text-lg">{app.jobId ? app.jobId.title : "Deleted Job"}</h4>
-                      <p className="text-xs text-zinc-500">
-                        Submitted on: {new Date(app.createdAt).toLocaleDateString()} • Expected: PKR {app.expectedSalary?.toLocaleString()}
-                      </p>
-                    </div>
+                {applications.map((app) => {
+                  const PIPELINE = ["Applied","Reviewed","Interview","Accepted","Hired","Completed"];
+                  const isTerminal = app.status === "Rejected";
+                  const currentIdx = PIPELINE.indexOf(app.status);
 
-                    {/* Status Badge */}
-                    <div className="flex items-center gap-2">
-                      {app.status === "Interview" && (
-                        <span className="px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-semibold flex items-center gap-1.5 font-sans">
-                          <Clock size={12} /> Interview Scheduled
+                  const statusConfig = {
+                    Applied:   { label: "Proposal Sent",     color: "text-zinc-500",   bg: "bg-zinc-200 dark:bg-zinc-800" },
+                    Pending:   { label: "Pending Review",    color: "text-blue-400",   bg: "bg-blue-500/15 border border-blue-500/20" },
+                    Reviewed:  { label: "Under Review",      color: "text-indigo-400", bg: "bg-indigo-500/15 border border-indigo-500/20" },
+                    Interview: { label: "Interview Scheduled",color:"text-amber-400",  bg: "bg-amber-500/15 border border-amber-500/20" },
+                    Accepted:  { label: "Offer Extended 🎉", color: "text-green-400",  bg: "bg-green-500/15 border border-green-500/20" },
+                    Hired:     { label: "Contract Active",   color: "text-emerald-300",bg: "bg-emerald-500/20 border border-emerald-500/30" },
+                    Completed: { label: "Completed ✓",       color: "text-blue-400",   bg: "bg-blue-500/15 border border-blue-500/20" },
+                    Rejected:  { label: "Not Selected",      color: "text-red-400",    bg: "bg-red-500/10 border border-red-500/20" },
+                  };
+                  const cfg = statusConfig[app.status] || statusConfig.Applied;
+
+                  return (
+                    <div key={app._id} className="p-5 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/5 space-y-4">
+
+                      {/* Top row: job + status badge */}
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                        <div>
+                          <h4 className="font-bold text-base text-zinc-800 dark:text-zinc-200 leading-tight">{app.jobId ? app.jobId.title : "Deleted Job"}</h4>
+                          <p className="text-xs text-zinc-500 mt-0.5">
+                            {app.jobId?.category && <span>{app.jobId.category} · </span>}
+                            Bid: <strong className="text-zinc-700 dark:text-zinc-300">PKR {app.expectedSalary?.toLocaleString()}</strong> · {app.estimatedTime} · Submitted {new Date(app.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <span className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 ${cfg.bg} ${cfg.color}`}>
+                          {app.status === "Completed" && <CheckCircle size={11} />}
+                          {app.status === "Rejected" && <XCircle size={11} />}
+                          {["Interview","Accepted","Hired"].includes(app.status) && <CheckCircle size={11} />}
+                          {cfg.label}
                         </span>
+                      </div>
+
+                      {/* Pipeline steps */}
+                      {!isTerminal && (
+                        <div className="flex items-center gap-0 overflow-x-auto py-1">
+                          {PIPELINE.map((step, idx) => {
+                            const done = idx < currentIdx;
+                            const active = idx === currentIdx;
+                            return (
+                              <div key={step} className="flex items-center min-w-0">
+                                <div className={`flex flex-col items-center gap-0.5 px-1 ${active ? "opacity-100" : done ? "opacity-70" : "opacity-30"}`}>
+                                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 transition-all ${
+                                    done ? "bg-blue-500 text-white" : active ? "bg-zinc-900 dark:bg-white text-white dark:text-black ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-zinc-950" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-500"
+                                  }`}>
+                                    {done ? <CheckCircle size={10} /> : idx + 1}
+                                  </div>
+                                  <span className={`text-[8px] font-semibold whitespace-nowrap ${active ? "text-zinc-800 dark:text-zinc-200" : "text-zinc-500"}`}>{step}</span>
+                                </div>
+                                {idx < PIPELINE.length - 1 && (
+                                  <div className={`h-px w-4 sm:w-6 shrink-0 mx-0.5 ${idx < currentIdx ? "bg-blue-500" : "bg-zinc-200 dark:bg-zinc-800"}`} />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
-                      {app.status === "Applied" && (
-                        <span className="px-3 py-1 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-white/5 text-xs font-semibold flex items-center gap-1.5 font-sans">
-                          <Clock size={12} /> Applied
-                        </span>
+
+                      {/* Interview info */}
+                      {app.status === "Interview" && app.interviewDate && (
+                        <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/5 border border-amber-500/15 rounded-xl px-4 py-2.5">
+                          <Clock size={13} />
+                          <span>Interview scheduled for <strong>{new Date(app.interviewDate).toLocaleString()}</strong></span>
+                          {app.interviewNote && <span className="text-zinc-500 ml-1">· {app.interviewNote}</span>}
+                        </div>
                       )}
-                      {app.status === "Pending" && (
-                        <span className="px-3 py-1 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/20 text-xs font-semibold flex items-center gap-1.5 font-sans">
-                          <Clock size={12} /> Pending
-                        </span>
+                      {app.status === "Interview" && !app.interviewDate && app.interviewNote && (
+                        <div className="text-xs text-amber-400 bg-amber-500/5 border border-amber-500/15 rounded-xl px-4 py-2.5">
+                          Note from employer: {app.interviewNote}
+                        </div>
                       )}
-                      {app.status === "Reviewed" && (
-                        <span className="px-3 py-1 rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/20 text-xs font-semibold flex items-center gap-1.5 font-sans">
-                          <Clock size={12} /> Under Review
-                        </span>
+
+                      {/* Action buttons */}
+                      {(app.status === "Applied" || app.status === "Pending" || app.status === "Reviewed") && (
+                        <div className="flex justify-end pt-1 border-t border-zinc-100 dark:border-white/5">
+                          <button
+                            onClick={() => handleWithdrawApplication(app._id)}
+                            className="px-3.5 py-1.5 text-xs font-semibold rounded-xl border border-zinc-200 dark:border-white/10 text-zinc-400 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/5 transition-all">
+                            Withdraw Application
+                          </button>
+                        </div>
                       )}
+
                       {app.status === "Accepted" && (
-                        <span className="px-3 py-1 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 text-xs font-semibold flex items-center gap-1.5 font-sans">
-                          <CheckCircle size={12} /> Offer Extended
-                        </span>
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-2 border-t border-zinc-100 dark:border-white/5">
+                          <p className="text-xs text-green-400 flex-1">The employer has extended an offer. Please respond to proceed.</p>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleOfferResponse(app._id, false)}
+                              className="px-3.5 py-1.5 text-xs font-bold rounded-xl border border-zinc-200 dark:border-white/10 text-red-400 hover:bg-red-500/10 transition-all">
+                              Decline
+                            </button>
+                            <button
+                              onClick={() => handleOfferResponse(app._id, true)}
+                              className="px-4 py-1.5 text-xs font-bold rounded-xl bg-green-600 hover:bg-green-700 text-white transition-all flex items-center gap-1.5">
+                              <CheckCircle size={12} /> Accept Offer
+                            </button>
+                          </div>
+                        </div>
                       )}
-                      {app.status === "Hired" && (
-                        <span className="px-3 py-1 rounded-full bg-green-500/20 text-green-300 border border-green-500/30 text-xs font-semibold flex items-center gap-1.5 font-sans">
-                          <CheckCircle size={12} /> Active Contract
-                        </span>
-                      )}
+
                       {app.status === "Completed" && (
-                        <span className="px-3 py-1 rounded-full bg-green-500 text-black border border-green-500 text-xs font-semibold flex items-center gap-1.5 font-sans">
-                          <CheckCircle size={12} /> Completed
-                        </span>
-                      )}
-                      {app.status === "Rejected" && (
-                        <span className="px-3 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 text-xs font-semibold flex items-center gap-1.5 font-sans">
-                          <XCircle size={12} /> Rejected
-                        </span>
+                        <div className="flex justify-end pt-1 border-t border-zinc-100 dark:border-white/5">
+                          <button
+                            onClick={() => { setEmpReviewApp(app); setEmpRatingVal(5); setEmpCommentVal(""); }}
+                            className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-all flex items-center gap-1.5">
+                            <Star size={12} /> Rate Employer
+                          </button>
+                        </div>
                       )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -2527,6 +2663,56 @@ export default function SeekerDashboard() {
           </div>
         </div>
       )}
+
+      {/* ═══════════════ MODAL: RATE EMPLOYER ═══════════════ */}
+      <AnimatePresence>
+        {empReviewApp && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.94, y: 20 }}
+              transition={{ type: "spring", damping: 22, stiffness: 260 }}
+              className="w-full max-w-md bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 p-6 md:p-8 rounded-2xl space-y-5">
+              <div>
+                <h3 className="text-xl font-bold tracking-tight">Rate Your Employer</h3>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                  For contract: <strong className="text-zinc-700 dark:text-zinc-300">{empReviewApp.jobId?.title}</strong>
+                </p>
+              </div>
+              <form onSubmit={handleEmployerReviewSubmit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Your Rating</label>
+                  <select value={empRatingVal} onChange={(e) => setEmpRatingVal(Number(e.target.value))}
+                    className="w-full px-4 py-3 rounded-xl bg-zinc-200 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm outline-none">
+                    <option value={5}>★★★★★ — 5 Stars (Excellent client)</option>
+                    <option value={4}>★★★★☆ — 4 Stars (Good experience)</option>
+                    <option value={3}>★★★☆☆ — 3 Stars (Average)</option>
+                    <option value={2}>★★☆☆☆ — 2 Stars (Below average)</option>
+                    <option value={1}>★☆☆☆☆ — 1 Star (Poor)</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Your Review</label>
+                  <textarea required value={empCommentVal} onChange={(e) => setEmpCommentVal(e.target.value)} rows={4}
+                    placeholder="Share your experience working with this employer: communication, clarity of requirements, payment, etc."
+                    className="w-full px-4 py-3 rounded-xl bg-zinc-200 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm outline-none resize-none placeholder-zinc-400" />
+                </div>
+                <div className="flex gap-3 pt-1">
+                  <button type="button" onClick={() => setEmpReviewApp(null)}
+                    className="flex-1 px-5 py-2.5 rounded-xl border border-zinc-200 dark:border-white/10 text-sm font-semibold text-zinc-500 hover:bg-zinc-200 dark:hover:bg-white/5 transition-all">
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={empReviewLoading}
+                    className="flex-1 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                    <Star size={14} /> {empReviewLoading ? "Submitting…" : "Submit Review"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );
