@@ -6,41 +6,7 @@ import {
   ShieldAlert, Users, Briefcase, FileText, Settings, Sparkles, 
   CheckCircle, AlertTriangle, LogOut, Plus, RefreshCw, BarChart2, Check, X, ChevronRight
 } from "lucide-react";
-// Disable framer-motion animations for instant responsiveness
-const stripMotionProps = ({
-  initial,
-  animate,
-  exit,
-  variants,
-  whileHover,
-  whileTap,
-  custom,
-  layoutId,
-  transition,
-  viewport,
-  layout,
-  ...rest
-}) => rest;
-
-const motion = {
-  div: ({ children, ...props }) => <div {...stripMotionProps(props)}>{children}</div>,
-  button: ({ children, ...props }) => <button {...stripMotionProps(props)}>{children}</button>,
-  span: ({ children, ...props }) => <span {...stripMotionProps(props)}>{children}</span>,
-  aside: ({ children, ...props }) => <aside {...stripMotionProps(props)}>{children}</aside>,
-  main: ({ children, ...props }) => <main {...stripMotionProps(props)}>{children}</main>,
-  p: ({ children, ...props }) => <p {...stripMotionProps(props)}>{children}</p>,
-  h1: ({ children, ...props }) => <h1 {...stripMotionProps(props)}>{children}</h1>,
-  h2: ({ children, ...props }) => <h2 {...stripMotionProps(props)}>{children}</h2>,
-  h3: ({ children, ...props }) => <h3 {...stripMotionProps(props)}>{children}</h3>,
-  h4: ({ children, ...props }) => <h4 {...stripMotionProps(props)}>{children}</h4>,
-  ul: ({ children, ...props }) => <ul {...stripMotionProps(props)}>{children}</ul>,
-  li: ({ children, ...props }) => <li {...stripMotionProps(props)}>{children}</li>,
-  circle: (props) => <circle {...stripMotionProps(props)} />,
-  form: ({ children, ...props }) => <form {...stripMotionProps(props)}>{children}</form>,
-};
-
-const AnimatePresence = ({ children }) => <>{children}</>;
-
+import { motion, AnimatePresence } from "framer-motion";
 import ThemeToggle from "../../../components/ThemeToggle";
 import BottomTabBar from "../../../components/BottomTabBar";
 
@@ -389,7 +355,7 @@ export default function AdminDashboard() {
       </aside>
 
       {/* Main Panel */}
-        <main className="flex-1 px-4 md:px-10 pt-14 md:pt-8 pb-24 md:pb-10 relative overflow-y-auto max-h-screen bg-zinc-50 dark:bg-zinc-950/50 transition-colors duration-300">
+        <main className="flex-1 px-4 md:px-10 pt-14 md:pt-0 pb-24 md:pb-10 relative overflow-y-auto max-h-screen bg-zinc-50 dark:bg-zinc-950/50 transition-colors duration-300">
 
 
         {/* ================= TAB: ANALYTICS ================= */}
