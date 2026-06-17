@@ -102,6 +102,12 @@ export default function EmployerDashboard() {
   const [interviewNote, setInterviewNote] = useState("");
   const [interviewSubmitting, setInterviewSubmitting] = useState(false);
 
+  // Send Offer modal
+  const [offerModalApp, setOfferModalApp] = useState(null);
+  const [offerAmount, setOfferAmount] = useState(0);
+  const [offerNote, setOfferNote] = useState("");
+  const [offerSubmitting, setOfferSubmitting] = useState(false);
+
   // Job postings state
   const [postings, setPostings] = useState([]);
   const [postingsLoading, setPostingsLoading] = useState(false);
@@ -395,6 +401,23 @@ export default function EmployerDashboard() {
       setInterviewNote("");
     } finally {
       setInterviewSubmitting(false);
+    }
+  };
+
+  // Send Offer (opens modal with amount + note, then submits)
+  const handleSendOffer = async (e) => {
+    e.preventDefault();
+    if (!offerModalApp) return;
+    setOfferSubmitting(true);
+    try {
+      await handleStatusUpdate(offerModalApp._id, "Accepted", {
+        offerNote: offerNote,
+      });
+      setOfferModalApp(null);
+      setOfferNote("");
+      setOfferAmount(0);
+    } finally {
+      setOfferSubmitting(false);
     }
   };
 
@@ -991,28 +1014,79 @@ export default function EmployerDashboard() {
                     {/* Pipeline (2/3 cols) */}
                     <div className="lg:col-span-2 space-y-5">
 
+                      {/* Pipeline funnel metrics */}
+                      {(() => {
+                        const FUNNEL = [
+                          { key: "Applied",   label: "Applied",    color: "bg-zinc-400" },
+                          { key: "Reviewed",  label: "Reviewed",   color: "bg-indigo-400" },
+                          { key: "Interview", label: "Interview",  color: "bg-amber-400" },
+                          { key: "Accepted",  label: "Offered",    color: "bg-green-400" },
+                          { key: "Hired",     label: "Hired",      color: "bg-emerald-400" },
+                          { key: "Completed", label: "Done",       color: "bg-blue-400" },
+                        ];
+                        const total = applicants.length;
+                        if (total === 0) return null;
+                        return (
+                          <div className="p-4 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/5 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Pipeline Overview</span>
+                              <span className="text-xs text-zinc-400">{total} total · {applicants.filter(a => a.status === "Rejected").length} rejected</span>
+                            </div>
+                            <div className="flex gap-1 h-2 rounded-full overflow-hidden w-full">
+                              {FUNNEL.map(({ key, color }) => {
+                                const count = applicants.filter(a => a.status === key || (key === "Applied" && a.status === "Pending")).length;
+                                const pct = Math.round((count / total) * 100);
+                                return pct > 0 ? (
+                                  <div key={key} className={`${color} h-full rounded-full`} style={{ width: `${pct}%` }} title={`${key}: ${count}`} />
+                                ) : null;
+                              })}
+                            </div>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1">
+                              {FUNNEL.map(({ key, label, color }) => {
+                                const count = applicants.filter(a => a.status === key || (key === "Applied" && a.status === "Pending")).length;
+                                return count > 0 ? (
+                                  <div key={key} className="flex items-center gap-1.5 text-xs">
+                                    <div className={`w-2 h-2 rounded-full ${color}`} />
+                                    <span className="text-zinc-500">{label}</span>
+                                    <span className="font-bold text-zinc-700 dark:text-zinc-300">{count}</span>
+                                  </div>
+                                ) : null;
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {/* Stage filter tabs */}
                       {(() => {
                         const stages = ["All","Applied","Reviewed","Interview","Accepted","Hired","Completed","Rejected"];
                         const counts = stages.reduce((acc, s) => {
-                          acc[s] = s === "All" ? applicants.length : applicants.filter(a => a.status === s).length;
+                          acc[s] = s === "All" ? applicants.length : applicants.filter(a => a.status === s || (s === "Applied" && a.status === "Pending")).length;
                           return acc;
                         }, {});
                         return (
-                          <div className="flex flex-wrap gap-1.5">
-                            {stages.map((s) => (
-                              <button
-                                key={s}
-                                onClick={() => setPipelineFilter(s)}
-                                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
-                                  pipelineFilter === s
-                                    ? "bg-zinc-900 dark:bg-white text-white dark:text-black border-transparent"
-                                    : "bg-transparent text-zinc-500 border-zinc-200 dark:border-white/10 hover:border-zinc-400 dark:hover:border-white/20"
-                                }`}
-                              >
-                                {s} {counts[s] > 0 && <span className="ml-1 opacity-70">{counts[s]}</span>}
-                              </button>
-                            ))}
+                          <div className="flex flex-wrap gap-1.5 items-center justify-between">
+                            <div className="flex flex-wrap gap-1.5">
+                              {stages.map((s) => (
+                                <button
+                                  key={s}
+                                  onClick={() => setPipelineFilter(s)}
+                                  className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+                                    pipelineFilter === s
+                                      ? "bg-zinc-900 dark:bg-white text-white dark:text-black border-transparent"
+                                      : "bg-transparent text-zinc-500 border-zinc-200 dark:border-white/10 hover:border-zinc-400 dark:hover:border-white/20"
+                                  }`}
+                                >
+                                  {s} {counts[s] > 0 && <span className="ml-1 opacity-70">{counts[s]}</span>}
+                                </button>
+                              ))}
+                            </div>
+                            <button
+                              onClick={() => selectedJob && fetchApplicantsAndAI(selectedJob._id)}
+                              className="px-2.5 py-1.5 rounded-xl border border-zinc-200 dark:border-white/10 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 text-xs font-semibold transition-all flex items-center gap-1.5 hover:bg-zinc-100 dark:hover:bg-white/5"
+                              title="Refresh applicants">
+                              ↻ Refresh
+                            </button>
                           </div>
                         );
                       })()}
@@ -1024,25 +1098,36 @@ export default function EmployerDashboard() {
                           ))}
                         </div>
                       ) : (() => {
-                        const filtered = pipelineFilter === "All" ? applicants : applicants.filter(a => a.status === pipelineFilter);
+                        const filtered = pipelineFilter === "All"
+                          ? applicants
+                          : applicants.filter(a => a.status === pipelineFilter || (pipelineFilter === "Applied" && a.status === "Pending"));
+
                         if (filtered.length === 0) return (
                           <div className="p-10 text-center rounded-2xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/5 text-zinc-500 text-sm flex flex-col items-center gap-2">
                             <Users size={32} className="text-zinc-300 dark:text-zinc-700" />
                             {pipelineFilter === "All" ? "No applications submitted yet for this posting." : `No candidates in the "${pipelineFilter}" stage.`}
                           </div>
                         );
+
+                        const PIPELINE_STEPS = ["Applied", "Reviewed", "Interview", "Accepted", "Hired", "Completed"];
+                        const statusColors = {
+                          Applied:   "bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
+                          Pending:   "bg-zinc-200 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400",
+                          Reviewed:  "bg-indigo-500/15 text-indigo-400 border border-indigo-500/20",
+                          Interview: "bg-amber-500/15 text-amber-400 border border-amber-500/20",
+                          Accepted:  "bg-green-500/15 text-green-400 border border-green-500/20",
+                          Hired:     "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30",
+                          Completed: "bg-blue-500/15 text-blue-400 border border-blue-500/20",
+                          Rejected:  "bg-red-500/10 text-red-400 border border-red-500/20",
+                        };
+
                         return (
                           <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="space-y-4">
                             {filtered.map((app) => {
-                              const statusColors = {
-                                Applied:   "bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
-                                Reviewed:  "bg-indigo-500/15 text-indigo-400 border border-indigo-500/20",
-                                Interview: "bg-amber-500/15 text-amber-400 border border-amber-500/20",
-                                Accepted:  "bg-green-500/15 text-green-400 border border-green-500/20",
-                                Hired:     "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30",
-                                Completed: "bg-blue-500/15 text-blue-400 border border-blue-500/20",
-                                Rejected:  "bg-red-500/10 text-red-400 border border-red-500/20",
-                              };
+                              const normStatus = app.status === "Pending" ? "Applied" : app.status;
+                              const currentStepIdx = PIPELINE_STEPS.indexOf(normStatus);
+                              const isRejected = app.status === "Rejected";
+
                               return (
                                 <motion.div
                                   key={app._id}
@@ -1068,6 +1153,36 @@ export default function EmployerDashboard() {
                                     </div>
                                   </div>
 
+                                  {/* Mini pipeline progress */}
+                                  {!isRejected && (
+                                    <div className="flex items-center gap-0 overflow-x-auto py-1">
+                                      {PIPELINE_STEPS.map((step, idx) => {
+                                        const done = idx < currentStepIdx;
+                                        const active = idx === currentStepIdx;
+                                        return (
+                                          <div key={step} className="flex items-center min-w-0">
+                                            <div className={`flex flex-col items-center gap-0.5 px-1 ${active ? "opacity-100" : done ? "opacity-70" : "opacity-25"}`}>
+                                              <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold shrink-0 ${
+                                                done ? "bg-blue-500 text-white" : active ? "bg-zinc-900 dark:bg-white text-white dark:text-black ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-zinc-950" : "bg-zinc-200 dark:bg-zinc-800 text-zinc-500"
+                                              }`}>
+                                                {done ? "✓" : idx + 1}
+                                              </div>
+                                              <span className={`text-[8px] font-semibold whitespace-nowrap ${active ? "text-zinc-700 dark:text-zinc-300" : "text-zinc-400"}`}>{step}</span>
+                                            </div>
+                                            {idx < PIPELINE_STEPS.length - 1 && (
+                                              <div className={`h-px w-3 sm:w-5 shrink-0 mx-0.5 ${idx < currentStepIdx ? "bg-blue-500" : "bg-zinc-200 dark:bg-zinc-800"}`} />
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                  {isRejected && (
+                                    <div className="text-[10px] text-red-400 flex items-center gap-1.5 bg-red-500/5 border border-red-500/15 rounded-lg px-3 py-1.5">
+                                      <XCircle size={11} /> Application closed · Not selected
+                                    </div>
+                                  )}
+
                                   {/* Bid + time row */}
                                   <div className="flex flex-wrap gap-4 text-xs border-t border-zinc-100 dark:border-white/5 pt-3">
                                     <span className="text-zinc-500">Bid: <strong className="text-zinc-800 dark:text-zinc-200">PKR {app.expectedSalary.toLocaleString()}{selectedJob?.workType === "Hourly" ? "/hr" : ""}</strong></span>
@@ -1083,19 +1198,42 @@ export default function EmployerDashboard() {
                                   {/* Proposal snippet */}
                                   <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed italic">"{app.proposal}"</p>
 
-                                  {/* Interview date if set */}
-                                  {app.interviewDate && (
+                                  {/* Interview scheduled info */}
+                                  {app.status === "Interview" && app.interviewDate && (
                                     <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/5 border border-amber-500/15 rounded-lg px-3 py-2">
                                       <Clock size={12} />
-                                      <span>Interview: <strong>{new Date(app.interviewDate).toLocaleString()}</strong></span>
+                                      <span>Scheduled: <strong>{new Date(app.interviewDate).toLocaleString()}</strong></span>
                                       {app.interviewNote && <span className="text-zinc-500 ml-1">· {app.interviewNote}</span>}
                                     </div>
                                   )}
+                                  {app.status === "Interview" && !app.interviewDate && app.interviewNote && (
+                                    <div className="text-xs text-amber-400 bg-amber-500/5 border border-amber-500/15 rounded-lg px-3 py-2">
+                                      Interview note: {app.interviewNote}
+                                    </div>
+                                  )}
 
-                                  {/* Offer note if set */}
-                                  {app.offerNote && app.status === "Accepted" && (
-                                    <div className="text-xs text-green-400 bg-green-500/5 border border-green-500/15 rounded-lg px-3 py-2">
-                                      Offer note: {app.offerNote}
+                                  {/* Offer extended info */}
+                                  {app.status === "Accepted" && (
+                                    <div className="flex items-center justify-between text-xs bg-green-500/5 border border-green-500/15 rounded-lg px-3 py-2">
+                                      <span className="text-green-400 flex items-center gap-1.5"><CheckCircle size={11} /> Offer sent · Awaiting candidate response</span>
+                                      {app.offerNote && <span className="text-zinc-500 italic text-[10px] ml-2 truncate max-w-[140px]">"{app.offerNote}"</span>}
+                                    </div>
+                                  )}
+
+                                  {/* Active contract banner */}
+                                  {app.status === "Hired" && (
+                                    <div className="flex items-center justify-between text-xs bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2">
+                                      <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
+                                        <CheckCircle size={11} /> Contract Active — work in progress
+                                      </span>
+                                      <span className="text-zinc-500 text-[10px]">PKR {app.expectedSalary.toLocaleString()}</span>
+                                    </div>
+                                  )}
+
+                                  {/* Completed banner */}
+                                  {app.status === "Completed" && (
+                                    <div className="text-xs text-blue-400 bg-blue-500/5 border border-blue-500/15 rounded-lg px-3 py-2 flex items-center gap-1.5">
+                                      <CheckCircle size={11} /> Contract completed successfully
                                     </div>
                                   )}
 
@@ -1117,17 +1255,17 @@ export default function EmployerDashboard() {
                                     )}
                                     {app.status === "Interview" && (
                                       <motion.button whileTap={{ scale: 0.95 }}
-                                        onClick={() => handleStatusUpdate(app._id, "Accepted")}
-                                        className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-bold text-xs rounded-xl transition-all">
-                                        Send Offer
+                                        onClick={() => { setOfferModalApp(app); setOfferAmount(app.expectedSalary); setOfferNote(""); }}
+                                        className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-1.5">
+                                        <Send size={11} /> Send Offer
                                       </motion.button>
                                     )}
                                     {app.status === "Accepted" && (
-                                      <span className="text-xs text-zinc-400 italic">Awaiting candidate response…</span>
+                                      <span className="text-xs text-green-400 italic flex items-center gap-1"><Clock size={10} /> Awaiting candidate response…</span>
                                     )}
                                     {app.status === "Hired" && (
                                       <motion.button whileTap={{ scale: 0.95 }}
-                                        onClick={() => handleStatusUpdate(app._id, "Completed")}
+                                        onClick={() => { if (confirm(`Mark contract with ${app.seekerId.fullName} as Complete?`)) handleStatusUpdate(app._id, "Completed"); }}
                                         className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-1.5">
                                         <CheckCircle size={11} /> Mark Complete
                                       </motion.button>
@@ -1140,7 +1278,7 @@ export default function EmployerDashboard() {
                                     )}
                                     {app.status !== "Completed" && app.status !== "Rejected" && (
                                       <motion.button whileTap={{ scale: 0.95 }}
-                                        onClick={() => handleStatusUpdate(app._id, "Rejected")}
+                                        onClick={() => { if (confirm(`Reject ${app.seekerId.fullName}'s application?`)) handleStatusUpdate(app._id, "Rejected"); }}
                                         className="px-3 py-1.5 bg-transparent hover:bg-red-500/10 text-zinc-400 hover:text-red-400 font-bold text-xs rounded-xl border border-zinc-200 dark:border-white/5 transition-all">
                                         Reject
                                       </motion.button>
@@ -1689,6 +1827,65 @@ export default function EmployerDashboard() {
                   <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }} type="submit" disabled={interviewSubmitting}
                     className="flex-1 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                     <Clock size={14} /> {interviewSubmitting ? "Scheduling…" : "Confirm Interview"}
+                  </motion.button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══════════════ MODAL: SEND OFFER ═══════════════ */}
+      <AnimatePresence>
+        {offerModalApp && (
+          <motion.div key="offer-overlay" variants={overlayAnim} initial="hidden" animate="visible" exit="exit"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div variants={modalSpring} initial="hidden" animate="visible" exit="exit"
+              className="w-full max-w-md bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 p-6 md:p-8 rounded-2xl space-y-5 relative">
+              <div>
+                <h3 className="text-xl font-bold tracking-tight">Send Job Offer</h3>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                  To: <strong className="text-zinc-700 dark:text-zinc-300">{offerModalApp.seekerId.fullName}</strong>
+                  <span className="ml-2 text-zinc-400">· {offerModalApp.seekerId.city}</span>
+                </p>
+              </div>
+              <form onSubmit={handleSendOffer} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
+                    Contract Amount (PKR){selectedJob?.workType === "Hourly" ? " /hr" : ""}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={offerAmount}
+                    onChange={(e) => setOfferAmount(Number(e.target.value))}
+                    className="w-full px-4 py-3 rounded-xl bg-zinc-200 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm outline-none text-zinc-800 dark:text-zinc-200"
+                    placeholder="e.g. 50000"
+                  />
+                  <p className="text-[10px] text-zinc-400">Candidate bid: PKR {offerModalApp.expectedSalary?.toLocaleString()}</p>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Offer Message <span className="text-zinc-400 normal-case">(optional)</span></label>
+                  <textarea
+                    value={offerNote}
+                    onChange={(e) => setOfferNote(e.target.value)}
+                    rows={3}
+                    placeholder="e.g. We're excited to offer you this contract. Looking forward to working with you…"
+                    className="w-full px-4 py-3 rounded-xl bg-zinc-200 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 text-sm outline-none resize-none text-zinc-800 dark:text-zinc-200 placeholder-zinc-400"
+                  />
+                </div>
+                <div className="p-3 rounded-xl bg-green-500/5 border border-green-500/15 text-xs text-green-400">
+                  The candidate will be notified and must accept or decline this offer.
+                </div>
+                <div className="flex gap-3 pt-1">
+                  <motion.button whileTap={{ scale: 0.96 }} type="button"
+                    onClick={() => setOfferModalApp(null)}
+                    className="flex-1 px-5 py-2.5 rounded-xl border border-zinc-200 dark:border-white/10 text-sm font-semibold text-zinc-500 hover:bg-zinc-200 dark:hover:bg-white/5 transition-all">
+                    Cancel
+                  </motion.button>
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }} type="submit" disabled={offerSubmitting}
+                    className="flex-1 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold text-sm rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                    <Send size={14} /> {offerSubmitting ? "Sending…" : "Send Offer"}
                   </motion.button>
                 </div>
               </form>
