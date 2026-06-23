@@ -155,7 +155,7 @@ const seedDatabase = async () => {
         bio: `${company} is a leading provider of premium professional services, based out of ${city}, Pakistan. We specialize in fast-paced scaling and delivering results.`,
         address: `${i + 12} Blue Area, Sector F-6, ${city}`,
         isVerified: i % 3 === 0,
-        rating: 4.0 + (i % 11) * 0.1,
+        rating: Math.round((4.0 + (i % 11) * 0.1) * 10) / 10,
         reviewCount: 2 + i,
         profileCompletion: 80,
       });
@@ -231,7 +231,7 @@ const seedDatabase = async () => {
         ],
         resume: `https://workfusion-resumes.s3.amazonaws.com/seeker${i + 1}_resume.pdf`,
         isVerified: i % 2 === 0,
-        rating: 4.2 + (i % 9) * 0.1,
+        rating: Math.round((4.2 + (i % 9) * 0.1) * 10) / 10,
         reviewCount: 4 + i,
         profileCompletion: 90,
         status: UserStatus.ACTIVE,
