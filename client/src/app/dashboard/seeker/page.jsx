@@ -917,7 +917,7 @@ export default function SeekerDashboard() {
       </AnimatePresence>
 
       {/* Main Panel */}
-      <main className="flex-1 px-4 md:px-10 pt-14 md:pt-0 pb-24 md:pb-10 relative overflow-y-auto max-h-screen">
+      <main className="flex-1 px-4 md:px-10 pt-14 md:pt-10 pb-24 md:pb-10 relative overflow-y-auto max-h-screen">
 
 
         {/* ================= TAB: MATCHES ================= */}

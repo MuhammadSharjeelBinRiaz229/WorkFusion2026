@@ -719,7 +719,7 @@ export default function EmployerDashboard() {
         </aside>
 
         {/* ─── Main Content Panel ───────────────────────────────────────── */}
-        <main className="flex-1 pt-14 md:pt-0 px-4 md:px-8 lg:px-10 pb-24 md:pb-8 lg:pb-10 overflow-y-auto min-h-screen">
+        <main className="flex-1 pt-14 md:pt-8 lg:pt-10 px-4 md:px-8 lg:px-10 pb-24 md:pb-8 lg:pb-10 overflow-y-auto min-h-screen">
 
 
           

@@ -355,7 +355,7 @@ export default function AdminDashboard() {
       </aside>
 
       {/* Main Panel */}
-        <main className="flex-1 px-4 md:px-10 pt-14 md:pt-0 pb-24 md:pb-10 relative overflow-y-auto max-h-screen bg-zinc-50 dark:bg-zinc-950/50 transition-colors duration-300">
+        <main className="flex-1 px-4 md:px-10 pt-14 md:pt-10 pb-24 md:pb-10 relative overflow-y-auto max-h-screen bg-zinc-50 dark:bg-zinc-950/50 transition-colors duration-300">
 
 
         {/* ================= TAB: ANALYTICS ================= */}
